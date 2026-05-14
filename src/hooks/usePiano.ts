@@ -1,70 +1,54 @@
-import { useState, useRef, useCallback } from 'react';
-import { midiToFreq } from '@/lib/music/chordParser';
+import { useRef, useCallback } from 'react'
+import * as Tone from 'tone'
+import { midiToFreq } from '../lib/music/chordParser'
 
-let audioCtx: AudioContext | null = null;
+let synth: Tone.PolySynth | null = null
 
-function getAudioCtx(): AudioContext {
-  if (!audioCtx) audioCtx = new AudioContext();
-  return audioCtx;
+function getSynth(): Tone.PolySynth {
+  if (!synth) {
+    synth = new Tone.PolySynth(Tone.Synth, {
+      oscillator: { type: 'triangle' },
+      envelope: { attack: 0.01, decay: 0.3, sustain: 0.4, release: 1.2 },
+      volume: -8,
+    }).toDestination()
+  }
+  return synth
 }
 
-function playNote(midi: number, duration = 0.8): void {
-  const ctx = getAudioCtx();
-  if (ctx.state === 'suspended') ctx.resume();
+export function usePiano() {
+  const activeNotes = useRef<Set<number>>(new Set())
 
-  const freq = midiToFreq(midi);
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
+  const pressNote = useCallback((midi: number) => {
+    if (activeNotes.current.has(midi)) return
+    Tone.start()
+    activeNotes.current.add(midi)
+    const freq = midiToFreq(midi)
+    getSynth().triggerAttack(freq, Tone.now())
+  }, [])
 
-  osc.type = 'triangle';
-  osc.frequency.setValueAtTime(freq, ctx.currentTime);
-  gain.gain.setValueAtTime(0.4, ctx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+  const releaseNote = useCallback((midi: number) => {
+    if (!activeNotes.current.has(midi)) return
+    activeNotes.current.delete(midi)
+    const freq = midiToFreq(midi)
+    getSynth().triggerRelease(freq, Tone.now())
+  }, [])
 
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-  osc.start(ctx.currentTime);
-  osc.stop(ctx.currentTime + duration);
-}
+  const playChord = useCallback((midiNotes: number[], duration = '2n') => {
+    Tone.start()
+    const freqs = midiNotes.map(midiToFreq)
+    getSynth().triggerAttackRelease(freqs, duration, Tone.now())
+  }, [])
 
-export interface UsePianoReturn {
-  pressedMidi: Set<number>;
-  recommendMidi: Set<number>;
-  pressKey: (midi: number) => void;
-  releaseKey: (midi: number) => void;
-  playChord: (notes: number[], duration?: number) => void;
-  setRecommendMidi: (midiSet: Set<number>) => void;
-  clearRecommendMidi: () => void;
-}
+  const releaseAll = useCallback(() => {
+    activeNotes.current.forEach(midi => {
+      getSynth().triggerRelease(midiToFreq(midi), Tone.now())
+    })
+    activeNotes.current.clear()
+  }, [])
 
-export function usePiano(): UsePianoReturn {
-  const [pressedMidi, setPressedMidi] = useState<Set<number>>(new Set());
-  const [recommendMidi, setRecommendMidiState] = useState<Set<number>>(new Set());
-  const heldRef = useRef<Set<number>>(new Set());
+  const getPressedMidi = useCallback((): number[] => {
+    return [...activeNotes.current]
+  }, [])
 
-  const pressKey = useCallback((midi: number) => {
-    if (heldRef.current.has(midi)) return;
-    heldRef.current.add(midi);
-    playNote(midi);
-    setPressedMidi(new Set(heldRef.current));
-  }, []);
-
-  const releaseKey = useCallback((midi: number) => {
-    heldRef.current.delete(midi);
-    setPressedMidi(new Set(heldRef.current));
-  }, []);
-
-  const playChord = useCallback((notes: number[], duration = 0.8) => {
-    notes.forEach((n) => playNote(n, duration));
-  }, []);
-
-  const setRecommendMidi = useCallback((midiSet: Set<number>) => {
-    setRecommendMidiState(new Set(midiSet));
-  }, []);
-
-  const clearRecommendMidi = useCallback(() => {
-    setRecommendMidiState(new Set());
-  }, []);
-
-  return { pressedMidi, recommendMidi, pressKey, releaseKey, playChord, setRecommendMidi, clearRecommendMidi };
+  return { pressNote, releaseNote, playChord, releaseAll, getPressedMidi, activeNotes }
 }

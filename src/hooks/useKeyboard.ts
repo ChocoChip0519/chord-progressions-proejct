@@ -1,78 +1,70 @@
-import { useEffect } from 'react';
-import { KEY_TO_MIDI } from '@/lib/music/chordParser';
+import { useEffect, useRef } from 'react'
 
-interface UseKeyboardOptions {
-  onConfirm: () => void;
-  onUndo: () => void;
-  onOpenPopup: () => void;
-  onClosePopup: () => void;
-  pressKey: (midi: number) => void;
-  releaseKey: (midi: number) => void;
-  isPopupOpen: boolean;
-  disabled?: boolean;
+// C4~B5 (2 octaves): white keys A-K (14 keys), black keys W E T Y U / I O P
+export const WHITE_MIDI = [60,62,64,65,67,69,71, 72,74,76,77,79,81,83]
+export const WHITE_KEYS = ['a','s','d','f','g','h','j','k','l',';',"'",'z','x','c']
+
+export const BLACK_MIDI = [61,63, 66,68,70, 73,75, 78,80,82]
+export const BLACK_KEYS = ['w','e', 't','y','u', 'i','o', 'p','[',']']
+
+const KB_WHITE_MAP: Record<string, number> = {}
+WHITE_KEYS.forEach((k, i) => { if (k) KB_WHITE_MAP[k] = WHITE_MIDI[i] })
+
+const KB_BLACK_MAP: Record<string, number> = {}
+BLACK_KEYS.forEach((k, i) => { if (k) KB_BLACK_MAP[k] = BLACK_MIDI[i] })
+
+export const KB_MIDI_MAP: Record<string, number> = { ...KB_WHITE_MAP, ...KB_BLACK_MAP }
+
+interface Handlers {
+  onPressNote: (midi: number) => void
+  onReleaseNote: (midi: number) => void
+  onEnter: () => void
+  onBackspace: () => void
+  onArrowRight: () => void
+  onEscape: () => void
 }
 
-export function useKeyboard({
-  onConfirm,
-  onUndo,
-  onOpenPopup,
-  onClosePopup,
-  pressKey,
-  releaseKey,
-  isPopupOpen,
-  disabled = false,
-}: UseKeyboardOptions): void {
+export function useKeyboard(handlers: Handlers, enabled = true) {
+  const pressed = useRef<Set<string>>(new Set())
+  const handlersRef = useRef(handlers)
+  handlersRef.current = handlers
+
   useEffect(() => {
-    if (disabled) return;
+    if (!enabled) return
 
-    function isInputFocused(): boolean {
-      const el = document.activeElement;
-      return el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
+    const onKeyDown = (e: KeyboardEvent) => {
+      // ignore when typing in an input
+      if ((e.target as HTMLElement).tagName === 'INPUT') return
+      if (e.repeat) return
+
+      const key = e.key.toLowerCase()
+      const h = handlersRef.current
+
+      if (KB_MIDI_MAP[key] !== undefined && !pressed.current.has(key)) {
+        pressed.current.add(key)
+        h.onPressNote(KB_MIDI_MAP[key])
+        return
+      }
+
+      if (e.key === 'Enter')      { e.preventDefault(); h.onEnter() }
+      if (e.key === 'Backspace')  { e.preventDefault(); h.onBackspace() }
+      if (e.key === 'ArrowRight') { e.preventDefault(); h.onArrowRight() }
+      if (e.key === 'Escape')     h.onEscape()
     }
 
-    function handleKeyDown(e: KeyboardEvent): void {
-      if (isInputFocused()) return;
-
-      if (e.key === 'Escape') {
-        if (isPopupOpen) onClosePopup();
-        return;
-      }
-
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        if (!isPopupOpen) onConfirm();
-        return;
-      }
-
-      if (e.key === 'Backspace') {
-        e.preventDefault();
-        if (!isPopupOpen) onUndo();
-        return;
-      }
-
-      if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        if (!isPopupOpen) onOpenPopup();
-        return;
-      }
-
-      const midi = KEY_TO_MIDI[e.key.toLowerCase()];
-      if (midi !== undefined && !e.repeat) {
-        pressKey(midi);
+    const onKeyUp = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase()
+      if (KB_MIDI_MAP[key] !== undefined) {
+        pressed.current.delete(key)
+        handlersRef.current.onReleaseNote(KB_MIDI_MAP[key])
       }
     }
 
-    function handleKeyUp(e: KeyboardEvent): void {
-      if (isInputFocused()) return;
-      const midi = KEY_TO_MIDI[e.key.toLowerCase()];
-      if (midi !== undefined) releaseKey(midi);
-    }
-
-    document.addEventListener('keydown', handleKeyDown);
-    document.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
     return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('keyup', handleKeyUp);
-    };
-  }, [disabled, isPopupOpen, onConfirm, onUndo, onOpenPopup, onClosePopup, pressKey, releaseKey]);
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+    }
+  }, [enabled])
 }

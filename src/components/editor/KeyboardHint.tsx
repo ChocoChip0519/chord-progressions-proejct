@@ -1,35 +1,12 @@
-interface HintItem {
-  key: string;
-  label: string;
-}
-
-const HINTS: HintItem[] = [
-  { key: 'Enter', label: '코드 확정' },
-  { key: '←', label: '마지막 코드 삭제' },
-  { key: '→', label: '추천 받기' },
-  { key: 'Esc', label: '팝업 닫기' },
-];
-
-export function KeyboardHint() {
+export default function KeyboardHint() {
   return (
-    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-      {HINTS.map(({ key, label }) => (
-        <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <kbd
-            style={{
-              padding: '2px 8px',
-              background: '#f0f0f0',
-              border: '1px solid #ccc',
-              borderRadius: 4,
-              fontSize: 12,
-              fontFamily: 'monospace',
-            }}
-          >
-            {key}
-          </kbd>
-          <span style={{ fontSize: 12, color: '#666' }}>{label}</span>
-        </div>
-      ))}
+    <div className="kb-hint">
+      <span><kbd>Enter</kbd> 코드 확정</span>
+      <span><kbd>⌫</kbd> 마지막 코드 삭제</span>
+      <span><kbd>→</kbd> 추천 받기</span>
+      <span><kbd>Esc</kbd> 팝업 닫기</span>
+      <span><kbd>A–C</kbd> 흰 건반</span>
+      <span><kbd>W E T Y U</kbd> 검은 건반</span>
     </div>
-  );
+  )
 }

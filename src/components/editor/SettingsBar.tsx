@@ -1,64 +1,69 @@
-import { useEditorStore } from '@/store/useEditorStore';
+import { useEditorStore } from '../../store/useEditorStore'
+import { NOTES_SHARP } from '../../lib/music/chordParser'
+import type { Genre, Mode } from '../../lib/music/degreeConverter'
 
-const GENRES = ['pop', 'r&b', 'ballad', 'rock'];
+const GENRES: { key: Genre; label: string }[] = [
+  { key: 'pop',    label: 'Pop' },
+  { key: 'rnb',   label: 'R&B' },
+  { key: 'ballad',label: '발라드' },
+  { key: 'rock',  label: 'Rock' },
+]
 
-export function SettingsBar() {
-  const { genre, bpm, mode, setGenre, setBpm } = useEditorStore();
+export default function SettingsBar() {
+  const { genre, setGenre, bpm, setBpm, modeLabel, modeOverride, setModeOverride, rootNote, setRootNote, currentMode } = useEditorStore()
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-      <div style={{ display: 'flex', gap: 8 }}>
-        {GENRES.map((g) => (
-          <button
-            key={g}
-            onClick={() => setGenre(g)}
-            style={{
-              padding: '4px 14px',
-              borderRadius: 20,
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: 13,
-              fontWeight: genre === g ? 700 : 400,
-              background: genre === g ? '#1a1a2e' : '#eee',
-              color: genre === g ? '#fff' : '#333',
-              transition: 'all 0.15s',
-            }}
-          >
-            {g.toUpperCase()}
-          </button>
-        ))}
-      </div>
+    <div className="settings-bar">
+      {/* Genre */}
+      <span className="settings-bar__label">장르</span>
+      {GENRES.map(g => (
+        <button
+          key={g.key}
+          className={`chip${genre === g.key ? ' chip--active' : ''}`}
+          onClick={() => setGenre(g.key)}
+        >
+          {g.label}
+        </button>
+      ))}
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 13, color: '#666' }}>BPM</span>
-        <input
-          type="number"
-          min={40}
-          max={300}
-          value={bpm}
-          onChange={(e) => setBpm(Number(e.target.value))}
-          style={{
-            width: 64,
-            padding: '4px 8px',
-            borderRadius: 6,
-            border: '1px solid #ccc',
-            fontSize: 14,
-            textAlign: 'center',
-          }}
-        />
-      </div>
+      <div className="sep" />
 
-      <div
-        style={{
-          padding: '4px 12px',
-          borderRadius: 20,
-          background: mode === 'minor' ? '#2d1b4e' : '#1a4e2d',
-          color: '#fff',
-          fontSize: 12,
-        }}
+      {/* Key (root note) */}
+      <span className="settings-bar__label">키</span>
+      <select
+        className="settings-bar__select"
+        value={rootNote}
+        onChange={e => setRootNote(e.target.value)}
       >
-        {mode === 'minor' ? '단조 (Minor)' : '장조 (Major)'}
-      </div>
+        <option value="">자동감지</option>
+        {NOTES_SHARP.map(n => <option key={n} value={n}>{n}</option>)}
+      </select>
+
+      {/* Major/Minor override */}
+      <select
+        className="settings-bar__select"
+        value={modeOverride ?? ''}
+        onChange={e => setModeOverride(e.target.value === '' ? null : e.target.value as Mode)}
+      >
+        <option value="">자동감지</option>
+        <option value="major">장조 (Major)</option>
+        <option value="minor">단조 (Minor)</option>
+      </select>
+
+      <div className="sep" />
+
+      {/* BPM */}
+      <span className="settings-bar__label">BPM</span>
+      <input
+        className="settings-bar__bpm"
+        type="number"
+        min={40}
+        max={300}
+        value={bpm}
+        onChange={e => setBpm(Number(e.target.value))}
+      />
+
+      <div className="mode-badge">{modeLabel}</div>
     </div>
-  );
+  )
 }

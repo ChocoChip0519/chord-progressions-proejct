@@ -1,109 +1,87 @@
-import { useState } from 'react';
-import { useEditorStore } from '@/store/useEditorStore';
+import { useState } from 'react'
+import { useEditorStore } from '../../store/useEditorStore'
+import type { Genre } from '../../lib/music/degreeConverter'
+import { NOTES_SHARP } from '../../lib/music/chordParser'
 
-const GENRES = ['pop', 'r&b', 'ballad', 'rock'];
+const GENRES: { key: Genre; label: string; emoji: string }[] = [
+  { key: 'pop',    label: 'Pop',    emoji: '🎵' },
+  { key: 'rnb',   label: 'R&B',   emoji: '🎷' },
+  { key: 'ballad',label: '발라드', emoji: '🎹' },
+  { key: 'rock',  label: 'Rock',   emoji: '🎸' },
+]
 
-interface TitleGenreStepProps {
-  onComplete: () => void;
+interface Props {
+  onDone: () => void
 }
 
-export function TitleGenreStep({ onComplete }: TitleGenreStepProps) {
-  const { setTitle, setGenre, genre } = useEditorStore();
-  const [localTitle, setLocalTitle] = useState('');
-  const [localGenre, setLocalGenre] = useState(genre);
+export default function TitleGenreStep({ onDone }: Props) {
+  const { title, setTitle, genre, setGenre, setRootNote, setModeOverride } = useEditorStore()
+  const [localTitle, setLocalTitle] = useState(title)
+  const [localGenre, setLocalGenre] = useState<Genre>(genre)
+  const [localRoot, setLocalRoot] = useState('')
+  const [localMode, setLocalMode] = useState<'major' | 'minor' | ''>('')
 
-  function handleComplete() {
-    setTitle(localTitle);
-    setGenre(localGenre);
-    onComplete();
+  const handleStart = () => {
+    setTitle(localTitle)
+    setGenre(localGenre)
+    setRootNote(localRoot)
+    setModeOverride(localMode === '' ? null : localMode)
+    onDone()
   }
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.6)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 100,
-      }}
-    >
-      <div
-        style={{
-          background: '#fff',
-          borderRadius: 16,
-          padding: 40,
-          width: 400,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 24,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
-        }}
-      >
-        <h2 style={{ margin: 0, fontSize: 22 }}>새 코드 진행</h2>
+    <div className="setup-overlay">
+      <div className="setup-card">
+        <h2 className="setup-card__title">새 코드 진행</h2>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <label style={{ fontSize: 14, color: '#555' }}>제목 (선택)</label>
-          <input
-            type="text"
-            placeholder="제목을 입력하세요"
-            value={localTitle}
-            onChange={(e) => setLocalTitle(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleComplete()}
-            autoFocus
-            style={{
-              padding: '10px 14px',
-              borderRadius: 8,
-              border: '1px solid #ddd',
-              fontSize: 15,
-              outline: 'none',
-            }}
-          />
+        <label className="setup-label">제목 (선택)</label>
+        <input
+          className="setup-input"
+          placeholder="제목을 입력하세요"
+          value={localTitle}
+          onChange={e => setLocalTitle(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleStart()}
+          autoFocus
+        />
+
+        <label className="setup-label">장르</label>
+        <div className="setup-genres">
+          {GENRES.map(g => (
+            <button
+              key={g.key}
+              className={`setup-genre-btn${localGenre === g.key ? ' active' : ''}`}
+              onClick={() => setLocalGenre(g.key)}
+            >
+              {g.emoji} {g.label}
+            </button>
+          ))}
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <label style={{ fontSize: 14, color: '#555' }}>장르</label>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {GENRES.map((g) => (
-              <button
-                key={g}
-                onClick={() => setLocalGenre(g)}
-                style={{
-                  padding: '8px 20px',
-                  borderRadius: 20,
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: 14,
-                  fontWeight: localGenre === g ? 700 : 400,
-                  background: localGenre === g ? '#1a1a2e' : '#f0f0f0',
-                  color: localGenre === g ? '#fff' : '#333',
-                  transition: 'all 0.15s',
-                }}
-              >
-                {g.toUpperCase()}
-              </button>
-            ))}
-          </div>
+        <label className="setup-label">키 (선택 – 미선택 시 자동감지)</label>
+        <div className="setup-row">
+          <select
+            className="setup-select"
+            value={localRoot}
+            onChange={e => setLocalRoot(e.target.value)}
+          >
+            <option value="">자동감지</option>
+            {NOTES_SHARP.map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+          <select
+            className="setup-select"
+            value={localMode}
+            onChange={e => setLocalMode(e.target.value as '' | 'major' | 'minor')}
+          >
+            <option value="">자동감지</option>
+            <option value="major">장조 (Major)</option>
+            <option value="minor">단조 (Minor)</option>
+          </select>
         </div>
 
-        <button
-          onClick={handleComplete}
-          style={{
-            padding: '12px',
-            borderRadius: 10,
-            border: 'none',
-            background: '#1a1a2e',
-            color: '#fff',
-            fontSize: 15,
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          시작하기
+        <button className="setup-start-btn" onClick={handleStart}>
+          작업 시작 →
         </button>
       </div>
     </div>
-  );
+  )
 }

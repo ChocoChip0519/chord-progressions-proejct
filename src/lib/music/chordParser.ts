@@ -1,101 +1,85 @@
-export const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+export const NOTES_SHARP = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'] as const
+export const NOTES_FLAT  = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'] as const
 
-export const ENHARMONIC: Record<string, string> = {
-  'Db': 'C#', 'Eb': 'D#', 'Fb': 'E', 'Gb': 'F#',
-  'Ab': 'G#', 'Bb': 'A#', 'Cb': 'B',
-};
-
-export interface ParsedChord {
-  root: string;
-  quality: string;
-  notes: number[];
-  name: string;
+export interface IntervalDef {
+  intervals: number[]
+  quality: string
 }
 
-export const INTERVALS: Record<string, number[]> = {
-  '':      [0, 4, 7],
-  'm':     [0, 3, 7],
-  'maj7':  [0, 4, 7, 11],
-  'm7':    [0, 3, 7, 10],
-  '7':     [0, 4, 7, 10],
-  'dim':   [0, 3, 6],
-  'aug':   [0, 4, 8],
-  'sus2':  [0, 2, 7],
-  'sus4':  [0, 5, 7],
-  'add9':  [0, 4, 7, 14],
-  'm9':    [0, 3, 7, 10, 14],
-  'maj9':  [0, 4, 7, 11, 14],
-  '9':     [0, 4, 7, 10, 14],
-};
+export const CHORD_INTERVALS: Record<string, number[]> = {
+  '':      [0,4,7],
+  'm':     [0,3,7],
+  '7':     [0,4,7,10],
+  'maj7':  [0,4,7,11],
+  'm7':    [0,3,7,10],
+  'dim':   [0,3,6],
+  'dim7':  [0,3,6,9],
+  'aug':   [0,4,8],
+  'sus2':  [0,2,7],
+  'sus4':  [0,5,7],
+  '7sus4': [0,5,7,10],
+  '9':     [0,4,7,10,14],
+  'maj9':  [0,4,7,11,14],
+  'm9':    [0,3,7,10,14],
+  'add9':  [0,4,7,14],
+  '6':     [0,4,7,9],
+  'm6':    [0,3,7,9],
+}
 
-export const WHITE_MIDI = [60, 62, 64, 65, 67, 69, 71, 72, 74, 76, 77, 79, 81, 83];
-export const BLACK_DEFS: Array<{ midi: number; leftOffset: number }> = [
-  { midi: 61, leftOffset: 1 },
-  { midi: 63, leftOffset: 2 },
-  { midi: 66, leftOffset: 4 },
-  { midi: 68, leftOffset: 5 },
-  { midi: 70, leftOffset: 6 },
-  { midi: 73, leftOffset: 8 },
-  { midi: 75, leftOffset: 9 },
-  { midi: 78, leftOffset: 11 },
-  { midi: 80, leftOffset: 12 },
-  { midi: 82, leftOffset: 13 },
-];
-
-export const KEY_TO_MIDI: Record<string, number> = {
-  a: 60, w: 61, s: 62, e: 63, d: 64,
-  f: 65, t: 66, g: 67, y: 68, h: 69,
-  u: 70, j: 71, k: 72,
-};
+export interface ParsedChord {
+  root: string
+  quality: string
+  name: string
+  notes: number[]  // MIDI numbers (C4=60 based, kept within range)
+}
 
 export function noteIndex(name: string): number {
-  const normalized = ENHARMONIC[name] ?? name;
-  return NOTE_NAMES.indexOf(normalized);
+  let i = NOTES_SHARP.indexOf(name as typeof NOTES_SHARP[number])
+  if (i < 0) i = NOTES_FLAT.indexOf(name as typeof NOTES_FLAT[number])
+  return i
 }
 
 export function midiToName(midi: number): string {
-  return NOTE_NAMES[midi % 12];
+  return NOTES_SHARP[midi % 12]
 }
 
 export function midiToFreq(midi: number): number {
-  return 440 * Math.pow(2, (midi - 69) / 12);
+  return 440 * Math.pow(2, (midi - 69) / 12)
 }
 
 export function parseChord(chordName: string): ParsedChord | null {
-  if (!chordName) return null;
-
-  const match = chordName.match(/^([A-G][b#]?)(.*)/);
-  if (!match) return null;
-
-  const rootName = match[1];
-  const quality = match[2] ?? '';
-
-  const rootNote = ENHARMONIC[rootName] ?? rootName;
-  const rootIdx = NOTE_NAMES.indexOf(rootNote);
-  if (rootIdx === -1) return null;
-
-  const intervals = INTERVALS[quality] ?? INTERVALS[''];
-  const rootMidi = rootIdx + 60;
-  const notes = intervals.map((i) => rootMidi + i);
-
-  return { root: rootNote, quality, notes, name: chordName };
+  const m = chordName.match(/^([A-G][b#]?)(.*)/)
+  if (!m) return null
+  const root = m[1]
+  const quality = m[2] ?? ''
+  const rootIdx = noteIndex(root)
+  if (rootIdx < 0) return null
+  const intervals = CHORD_INTERVALS[quality] ?? CHORD_INTERVALS['']
+  const rootMidi = 60 + rootIdx
+  const notes = intervals.map(iv => {
+    let n = rootMidi + iv
+    while (n > 84) n -= 12
+    return n
+  })
+  return { root, quality, name: chordName, notes }
 }
 
-export function detectChordFromMidi(midiNotes: number[]): string | null {
-  if (midiNotes.length < 2) return null;
+/** Infer chord name from a set of MIDI notes */
+export function inferChordName(midiNotes: number[]): string {
+  if (midiNotes.length === 0) return ''
+  const sorted = [...midiNotes].sort((a, b) => a - b)
+  const rootMidi = sorted[0]
+  const rootName = midiToName(rootMidi)
+  const intervals = sorted.map(n => n - rootMidi).sort((a, b) => a - b)
+  const ivStr = JSON.stringify(intervals)
 
-  const pitchClasses = [...new Set(midiNotes.map((m) => m % 12))].sort((a, b) => a - b);
-
-  for (const [quality, intervals] of Object.entries(INTERVALS)) {
-    for (let rootPc = 0; rootPc < 12; rootPc++) {
-      const expected = intervals.map((i) => (rootPc + i) % 12).sort((a, b) => a - b);
-      if (
-        expected.length === pitchClasses.length &&
-        expected.every((pc, i) => pc === pitchClasses[i])
-      ) {
-        return NOTE_NAMES[rootPc] + quality;
-      }
-    }
+  for (const [quality, ivs] of Object.entries(CHORD_INTERVALS)) {
+    if (JSON.stringify(ivs) === ivStr) return rootName + quality
   }
-  return null;
+
+  // partial match: just root + closest quality
+  if (intervals.includes(3) && intervals.includes(7)) return rootName + 'm'
+  if (intervals.includes(4) && intervals.includes(7)) return rootName
+  if (intervals.length === 1) return rootName
+  return rootName + '?'
 }

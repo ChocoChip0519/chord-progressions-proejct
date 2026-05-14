@@ -1,117 +1,152 @@
-import { NOTE_NAMES, ENHARMONIC } from './chordParser';
+import { noteIndex, midiToName, NOTES_SHARP, parseChord } from './chordParser'
+import type { ParsedChord } from './chordParser'
 
-export type Mode = 'major' | 'minor';
+export type Genre = 'pop' | 'rnb' | 'ballad' | 'rock'
+export type Mode = 'major' | 'minor'
 
-const MAJOR_INTERVALS = [0, 2, 4, 5, 7, 9, 11];
-const MINOR_INTERVALS = [0, 2, 3, 5, 7, 8, 10];
+const MAJOR_SCALE = [0,2,4,5,7,9,11]
+const MINOR_SCALE = [0,2,3,5,7,8,10]
 
-const DEGREE_TO_SEMITONE: Record<string, { semitone: number; quality: string }> = {
-  // Major degrees
-  'I':      { semitone: 0,  quality: '' },
-  'ii':     { semitone: 2,  quality: 'm' },
-  'iii':    { semitone: 4,  quality: 'm' },
-  'IV':     { semitone: 5,  quality: '' },
-  'V':      { semitone: 7,  quality: '' },
-  'vi':     { semitone: 9,  quality: 'm' },
-  'vii°':   { semitone: 11, quality: 'dim' },
-  'Imaj7':  { semitone: 0,  quality: 'maj7' },
-  'vim7':   { semitone: 9,  quality: 'm7' },
-  'IVmaj7': { semitone: 5,  quality: 'maj7' },
-  'V7':     { semitone: 7,  quality: '7' },
-  'iim7':   { semitone: 2,  quality: 'm7' },
-  // Minor degrees
-  'i':      { semitone: 0,  quality: 'm' },
-  'ii°':    { semitone: 2,  quality: 'dim' },
-  'III':    { semitone: 3,  quality: '' },
-  'iv':     { semitone: 5,  quality: 'm' },
-  'v':      { semitone: 7,  quality: 'm' },
-  'VI':     { semitone: 8,  quality: '' },
-  'VII':    { semitone: 10, quality: '' },
-  // Shared
-  'IIImaj7':{ semitone: 3,  quality: 'maj7' },
-  'VImaj7': { semitone: 8,  quality: 'maj7' },
-};
-
-export function degreeToChord(degree: string, tonicMidi: number, _mode: Mode): string | null {
-  const info = DEGREE_TO_SEMITONE[degree];
-  if (!info) return null;
-  const rootPc = (tonicMidi % 12 + info.semitone) % 12;
-  return NOTE_NAMES[rootPc] + info.quality;
+// degree → scale index
+const DEGREE_IDX: Record<Mode, Record<string, number>> = {
+  major: { I:0, ii:1, iii:2, IV:3, V:4, vi:5, 'vii°':6 },
+  minor: { i:0, 'ii°':1, III:2, iv:3, v:4, VI:5, VII:6, V:4 },
 }
 
-export function degreeToVariants(degree: string, tonicMidi: number, mode: Mode): string[] {
-  const base = degreeToChord(degree, tonicMidi, mode);
-  if (!base) return [];
+// degree → chord quality
+const DEGREE_QUALITY: Record<Mode, Record<string, string>> = {
+  major: { I:'', ii:'m', iii:'m', IV:'', V:'', vi:'m', 'vii°':'dim' },
+  minor: { i:'m', 'ii°':'dim', III:'', iv:'m', v:'m', VI:'', VII:'', V:'' },
+}
 
-  const root = base.replace(/m7|maj7|m|7|dim|aug|sus[24]|add9/, '');
-  const variants: string[] = [base];
+// For R&B / complex degrees (Imaj7, iii7, etc.)
+const RNB_DEGREE_MAP: Record<string, { scaleIdx: number; quality: string }> = {
+  'Imaj7':  { scaleIdx: 0, quality: 'maj7' },
+  'IVmaj7': { scaleIdx: 3, quality: 'maj7' },
+  'iii7':   { scaleIdx: 2, quality: 'm7'   },
+  'vi7':    { scaleIdx: 5, quality: 'm7'   },
+  'V7':     { scaleIdx: 4, quality: '7'    },
+  'V7sus4': { scaleIdx: 4, quality: '7sus4'},
+  'ii7':    { scaleIdx: 1, quality: 'm7'   },
+  'IV7':    { scaleIdx: 3, quality: '7'    },
+  'I7':     { scaleIdx: 0, quality: '7'    },
+  'i7':     { scaleIdx: 0, quality: 'm7'   },
+  'iv7':    { scaleIdx: 3, quality: 'm7'   },
+  'VII':    { scaleIdx: 6, quality: ''     },
+  'VI':     { scaleIdx: 5, quality: ''     },
+  'III':    { scaleIdx: 2, quality: ''     },
+  'bVII':   { scaleIdx: -1, quality: ''   },  // flat-7: special case
+}
 
-  if (degree === 'I' || degree === 'i') {
-    variants.push(root + 'maj7', root + 'add9');
-  }
-  if (degree === 'IV' || degree === 'iv') {
-    variants.push(root + 'maj7');
-  }
-  if (degree === 'V') {
-    variants.push(root + '7', root + 'sus4');
-  }
-  if (degree === 'vi' || degree === 'VI') {
-    variants.push(root + 'm7');
+export function degreeToChord(degree: string, tonicMidi: number, mode: Mode): string | null {
+  // R&B complex degree?
+  if (RNB_DEGREE_MAP[degree]) {
+    const { scaleIdx, quality } = RNB_DEGREE_MAP[degree]
+    const scale = mode === 'major' ? MAJOR_SCALE : MINOR_SCALE
+    let semitone: number
+    if (scaleIdx === -1) {
+      // bVII: 10 semitones above tonic (♭7 scale degree)
+      semitone = 10
+    } else {
+      semitone = scale[scaleIdx] ?? scale[0]
+    }
+    const rootMidi = ((tonicMidi - 60 + semitone + 12) % 12) + 60
+    const rootName = NOTES_SHARP[rootMidi % 12]
+    return rootName + quality
   }
 
-  return [...new Set(variants)];
+  const idxMap = DEGREE_IDX[mode]
+  const qualMap = DEGREE_QUALITY[mode]
+  const idx = idxMap[degree]
+  if (idx === undefined) return null
+  const scale = mode === 'major' ? MAJOR_SCALE : MINOR_SCALE
+  const semitone = scale[idx]
+  const rootMidi = ((tonicMidi - 60 + semitone + 12) % 12) + 60
+  const rootName = NOTES_SHARP[rootMidi % 12]
+  const quality = qualMap[degree] ?? ''
+  return rootName + quality
 }
 
 export function chordToDegree(chordName: string, tonicMidi: number, mode: Mode): string | null {
-  const cleanName = chordName.trim();
-  const match = cleanName.match(/^([A-G][b#]?)(.*)/);
-  if (!match) return null;
-
-  const rootName = ENHARMONIC[match[1]] ?? match[1];
-  const quality = match[2] ?? '';
-  const tonicPc = tonicMidi % 12;
-  const rootPc = NOTE_NAMES.indexOf(rootName);
-  if (rootPc === -1) return null;
-
-  const semitone = (rootPc - tonicPc + 12) % 12;
-  const intervals = mode === 'major' ? MAJOR_INTERVALS : MINOR_INTERVALS;
-  const degreeIdx = intervals.indexOf(semitone);
-
-  if (degreeIdx === -1) {
-    for (const [deg, info] of Object.entries(DEGREE_TO_SEMITONE)) {
-      if (info.semitone === semitone && info.quality === quality) return deg;
-    }
-    return null;
+  const parsed: ParsedChord | null = parseChord(chordName)
+  if (!parsed) return null
+  const rootOffset = (noteIndex(parsed.root) - (tonicMidi % 12) + 12) % 12
+  const scale = mode === 'major' ? MAJOR_SCALE : MINOR_SCALE
+  const idx = scale.indexOf(rootOffset)
+  if (idx < 0) return null
+  const idxMap = DEGREE_IDX[mode]
+  if (mode === 'minor' && idx === 4) {
+    const isMinorQuality = parsed.quality.startsWith('m') || parsed.quality === 'dim'
+    return isMinorQuality ? 'v' : 'V'
   }
-
-  const majorDegrees = ['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°'];
-  const minorDegrees = ['i', 'ii°', 'III', 'iv', 'v', 'VI', 'VII'];
-  const baseDegree = mode === 'major' ? majorDegrees[degreeIdx] : minorDegrees[degreeIdx];
-
-  if (quality === 'maj7') {
-    if (semitone === 0) return 'Imaj7';
-    if (semitone === 5) return 'IVmaj7';
-    if (semitone === 3) return 'IIImaj7';
-    if (semitone === 8) return 'VImaj7';
-  }
-  if (quality === 'm7') {
-    if (semitone === 9 && mode === 'major') return 'vim7';
-    if (semitone === 2) return 'iim7';
-  }
-  if (quality === '7' && semitone === 7) return 'V7';
-
-  return baseDegree;
+  return Object.keys(idxMap).find(d => idxMap[d] === idx) ?? null
 }
 
-export function detectMode(firstChord: string): { mode: Mode; tonicMidi: number } {
-  const match = firstChord.trim().match(/^([A-G][b#]?)(.*)/);
-  if (!match) return { mode: 'major', tonicMidi: 60 };
+export function detectMode(chordName: string): { mode: Mode; tonicMidi: number } {
+  const parsed = parseChord(chordName)
+  if (!parsed) return { mode: 'major', tonicMidi: 60 }
+  const isMinor = parsed.quality.startsWith('m') || parsed.quality === 'dim'
+  const mode: Mode = isMinor ? 'minor' : 'major'
+  const tonicMidi = 60 + noteIndex(parsed.root)
+  return { mode, tonicMidi }
+}
 
-  const rootName = ENHARMONIC[match[1]] ?? match[1];
-  const quality = match[2] ?? '';
-  const rootPc = NOTE_NAMES.indexOf(rootName);
-  const tonicMidi = rootPc !== -1 ? rootPc + 60 : 60;
+/**
+ * 코드 이름 배열을 받아 가장 잘 맞는 key(tonic + mode)를 추정한다.
+ * 각 후보 key에서 코드들이 몇 개나 diatonic한지 점수를 매겨 최고점 반환.
+ */
+export function inferKey(chordNames: string[]): { mode: Mode; tonicMidi: number } {
+  const parsed = chordNames.map(parseChord).filter(Boolean) as ParsedChord[]
+  if (parsed.length === 0) return { mode: 'major', tonicMidi: 60 }
 
-  const isMinor = quality.startsWith('m') && !quality.startsWith('maj');
-  return { mode: isMinor ? 'minor' : 'major', tonicMidi };
+  let bestScore = -1
+  let bestTonic = 0
+  let bestMode: Mode = 'major'
+
+  for (let tonic = 0; tonic < 12; tonic++) {
+    for (const mode of ['major', 'minor'] as Mode[]) {
+      const scale = mode === 'major' ? MAJOR_SCALE : MINOR_SCALE
+      const scaleNotes = scale.map(s => (tonic + s) % 12)
+      let score = 0
+      for (const p of parsed) {
+        const rootOffset = noteIndex(p.root) % 12
+        if (scaleNotes.includes(rootOffset)) {
+          // root가 스케일에 있으면 기본 점수
+          const idx = scaleNotes.indexOf(rootOffset)
+          score += 2
+          // quality가 해당 도수의 diatonic quality와 맞으면 추가 점수
+          const expectedQuality = DEGREE_QUALITY[mode][Object.keys(DEGREE_IDX[mode])[idx]] ?? ''
+          const actualIsMinor = p.quality.startsWith('m') || p.quality === 'dim'
+          const expectedIsMinor = expectedQuality.startsWith('m') || expectedQuality === 'dim'
+          if (actualIsMinor === expectedIsMinor) score += 1
+        }
+      }
+      if (score > bestScore) {
+        bestScore = score
+        bestTonic = tonic
+        bestMode = mode
+      }
+    }
+  }
+
+  return { mode: bestMode, tonicMidi: 60 + bestTonic }
+}
+
+/** All degree variants for a base degree (includes 7th, maj7, sus4, etc.) */
+export function degreeVariants(degree: string, tonicMidi: number, mode: Mode): string[] {
+  const base = degreeToChord(degree, tonicMidi, mode)
+  if (!base) return []
+  const parsed = parseChord(base)
+  if (!parsed) return [base]
+  const r = parsed.root
+  const isMinorQuality = parsed.quality.startsWith('m') || parsed.quality === 'dim'
+
+  if (!isMinorQuality) {
+    const base = parsed.quality === '' ? r : r + parsed.quality
+    const extras = [r+'maj7', r+'7', r+'sus4', r+'add9'].filter(v => v !== base)
+    return [base, ...extras]
+  } else {
+    const base = r + (parsed.quality === 'm' ? 'm' : parsed.quality)
+    return [base, r+'m7', r+'m9', r+'7'].filter((v, i, arr) => arr.indexOf(v) === i)
+  }
 }

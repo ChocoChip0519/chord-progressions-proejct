@@ -1,184 +1,191 @@
-import { create } from 'zustand';
-import { Tree, type TreeNode } from '@/lib/datastructures/Tree';
-import {
-  fetchCards,
-  upsertCard,
-  deleteCard,
-  reorderCards,
-  type CardRow,
-} from '@/lib/supabase/cardsApi';
-import {
-  fetchFolders,
-  createFolder,
-  deleteFolder,
-  renameFolder,
-  addCardToFolder,
-  removeCardFromFolder,
-  type FolderRow,
-} from '@/lib/supabase/foldersApi';
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+import { Tree } from '../lib/datastructures/Tree'
+import type { Genre, Mode } from '../lib/music/degreeConverter'
+
+export interface CardData {
+  id: string
+  title: string
+  chords: string[]
+  genre: Genre
+  mode: Mode
+  key: string
+  bpm: number
+  createdAt: number
+  updatedAt: number
+  order: number
+}
 
 export interface FolderData {
-  name: string;
+  id: string
+  name: string
+  cardIds: string[]
 }
 
-function buildTree(folders: FolderRow[]): Tree<FolderData> {
-  const tree = new Tree<FolderData>();
-  folders.forEach((f) => {
-    const node: TreeNode<FolderData> = {
-      id: f.id,
-      data: { name: f.name },
-      children: [],
-      parentId: null,
-    };
-    tree.insert(node, null);
-  });
-  return tree;
+interface CardStoreState {
+  cards: CardData[]
+  folders: FolderData[]
+  folderTree: Tree<FolderData>
+  activeFolderId: string   // 'all' = 작업 list
+
+  // card actions
+  addCard: (card: Omit<CardData, 'id' | 'createdAt' | 'updatedAt' | 'order'>) => string
+  updateCard: (id: string, updates: Partial<CardData>) => void
+  deleteCard: (id: string) => void
+  reorderCards: (folderId: string, orderedIds: string[]) => void
+
+  // folder actions
+  addFolder: (name: string) => string
+  renameFolder: (id: string, name: string) => void
+  deleteFolder: (id: string) => void
+  setActiveFolder: (id: string) => void
+
+  // card ↔ folder
+  addCardToFolder: (cardId: string, folderId: string) => void
+  removeCardFromFolder: (cardId: string, folderId: string) => void
+
+  // derived
+  getCardsForFolder: (folderId: string) => CardData[]
 }
 
-interface CardStore {
-  cards: CardRow[];
-  folders: FolderRow[];
-  folderTree: Tree<FolderData>;
-  cardFolderMap: Record<string, string[]>;
-  activeFolder: string | null;
-  sortMode: 'title' | 'date';
-  treeVersion: number;
-  userId: string;
+const ALL_FOLDER = 'all'
 
-  loadAll: () => Promise<void>;
-  addCard: (card: Partial<CardRow>) => Promise<CardRow>;
-  updateCard: (id: string, patch: Partial<CardRow>) => Promise<void>;
-  removeCard: (id: string) => Promise<void>;
-  reorder: (orderedIds: string[]) => Promise<void>;
-  addFolder: (name: string) => Promise<void>;
-  removeFolder: (id: string) => Promise<void>;
-  renameFolder: (id: string, name: string) => Promise<void>;
-  moveCardToFolder: (cardId: string, folderId: string) => Promise<void>;
-  removeCardFromFolder: (cardId: string, folderId: string) => Promise<void>;
-  setActiveFolder: (id: string | null) => void;
-  setSortMode: (mode: 'title' | 'date') => void;
-  getVisibleCards: () => CardRow[];
+// Tree is not JSON-serializable so we keep it in memory and rebuild on hydrate
+function rebuildTree(folders: FolderData[]): Tree<FolderData> {
+  const t = new Tree<FolderData>()
+  // root = virtual "all"
+  const rootData: FolderData = { id: ALL_FOLDER, name: '작업 list', cardIds: [] }
+  t.addRoot(ALL_FOLDER, rootData)
+  folders.forEach(f => t.addChild(ALL_FOLDER, f.id, f))
+  return t
 }
 
-function getUserId(): string {
-  const key = 'chord_user_id';
-  let id = localStorage.getItem(key);
-  if (!id) {
-    id = crypto.randomUUID();
-    localStorage.setItem(key, id);
-  }
-  return id;
-}
+let _tree = rebuildTree([])
 
-export const useCardStore = create<CardStore>((set, get) => ({
-  cards: [],
-  folders: [],
-  folderTree: new Tree<FolderData>(),
-  cardFolderMap: {},
-  activeFolder: null,
-  sortMode: 'date',
-  treeVersion: 0,
-  userId: getUserId(),
+export const useCardStore = create<CardStoreState>()(
+  persist(
+    (set, get) => ({
+      cards: [],
+      folders: [],
+      folderTree: _tree,
+      activeFolderId: ALL_FOLDER,
 
-  loadAll: async () => {
-    const { userId } = get();
-    const [cards, folders] = await Promise.all([fetchCards(userId), fetchFolders(userId)]);
-    const tree = buildTree(folders);
-    set({ cards, folders, folderTree: tree, treeVersion: get().treeVersion + 1 });
-  },
+      addCard: (card) => {
+        const id = crypto.randomUUID()
+        const now = Date.now()
+        const newCard: CardData = {
+          ...card,
+          id,
+          createdAt: now,
+          updatedAt: now,
+          order: get().cards.length,
+        }
+        set(s => ({ cards: [...s.cards, newCard] }))
+        return id
+      },
 
-  addCard: async (card) => {
-    const { userId, cards } = get();
-    const newCard = await upsertCard({
-      ...card,
-      user_id: userId,
-      sort_order: cards.length,
-    });
-    set({ cards: [...cards, newCard] });
-    return newCard;
-  },
+      updateCard: (id, updates) => {
+        set(s => ({
+          cards: s.cards.map(c =>
+            c.id === id ? { ...c, ...updates, updatedAt: Date.now() } : c
+          ),
+        }))
+      },
 
-  updateCard: async (id, patch) => {
-    const { cards } = get();
-    await upsertCard({ id, ...patch });
-    set({ cards: cards.map((c) => (c.id === id ? { ...c, ...patch } : c)) });
-  },
+      deleteCard: (id) => {
+        set(s => ({
+          cards: s.cards.filter(c => c.id !== id),
+          folders: s.folders.map(f => ({
+            ...f,
+            cardIds: f.cardIds.filter(cid => cid !== id),
+          })),
+        }))
+      },
 
-  removeCard: async (id) => {
-    await deleteCard(id);
-    set({ cards: get().cards.filter((c) => c.id !== id) });
-  },
+      reorderCards: (_folderId, orderedIds) => {
+        set(s => ({
+          cards: s.cards.map(c => {
+            const idx = orderedIds.indexOf(c.id)
+            return idx >= 0 ? { ...c, order: idx } : c
+          }),
+        }))
+      },
 
-  reorder: async (orderedIds) => {
-    await reorderCards(orderedIds);
-    const cardMap = new Map(get().cards.map((c) => [c.id, c]));
-    const reordered = orderedIds
-      .map((id, i) => {
-        const c = cardMap.get(id);
-        return c ? { ...c, sort_order: i } : null;
-      })
-      .filter(Boolean) as CardRow[];
-    set({ cards: reordered });
-  },
+      addFolder: (name) => {
+        const id = crypto.randomUUID()
+        const folder: FolderData = { id, name, cardIds: [] }
+        set(s => {
+          const folders = [...s.folders, folder]
+          _tree = rebuildTree(folders)
+          return { folders, folderTree: _tree }
+        })
+        return id
+      },
 
-  addFolder: async (name) => {
-    const { userId, folders, folderTree, treeVersion } = get();
-    const folder = await createFolder(name, userId);
-    const node: TreeNode<FolderData> = {
-      id: folder.id,
-      data: { name: folder.name },
-      children: [],
-      parentId: null,
-    };
-    folderTree.insert(node, null);
-    set({ folders: [...folders, folder], treeVersion: treeVersion + 1 });
-  },
+      renameFolder: (id, name) => {
+        set(s => {
+          const folders = s.folders.map(f => f.id === id ? { ...f, name } : f)
+          _tree = rebuildTree(folders)
+          _tree.rename(id, folders.find(f => f.id === id)!)
+          return { folders, folderTree: _tree }
+        })
+      },
 
-  removeFolder: async (id) => {
-    const { folders, folderTree, treeVersion } = get();
-    await deleteFolder(id);
-    folderTree.remove(id);
-    set({ folders: folders.filter((f) => f.id !== id), treeVersion: treeVersion + 1 });
-  },
+      deleteFolder: (id) => {
+        set(s => {
+          const folders = s.folders.filter(f => f.id !== id)
+          _tree = rebuildTree(folders)
+          return {
+            folders,
+            folderTree: _tree,
+            activeFolderId: s.activeFolderId === id ? ALL_FOLDER : s.activeFolderId,
+          }
+        })
+      },
 
-  renameFolder: async (id, name) => {
-    const { folders, folderTree, treeVersion } = get();
-    await renameFolder(id, name);
-    const node = folderTree.findById(id);
-    if (node) node.data.name = name;
-    set({ folders: folders.map((f) => (f.id === id ? { ...f, name } : f)), treeVersion: treeVersion + 1 });
-  },
+      setActiveFolder: (id) => set({ activeFolderId: id }),
 
-  moveCardToFolder: async (cardId, folderId) => {
-    const { cardFolderMap } = get();
-    await addCardToFolder(cardId, folderId);
-    const prev = cardFolderMap[cardId] ?? [];
-    if (!prev.includes(folderId)) {
-      set({ cardFolderMap: { ...cardFolderMap, [cardId]: [...prev, folderId] } });
+      addCardToFolder: (cardId, folderId) => {
+        set(s => ({
+          folders: s.folders.map(f =>
+            f.id === folderId && !f.cardIds.includes(cardId)
+              ? { ...f, cardIds: [...f.cardIds, cardId] }
+              : f
+          ),
+        }))
+      },
+
+      removeCardFromFolder: (cardId, folderId) => {
+        set(s => ({
+          folders: s.folders.map(f =>
+            f.id === folderId
+              ? { ...f, cardIds: f.cardIds.filter(id => id !== cardId) }
+              : f
+          ),
+        }))
+      },
+
+      getCardsForFolder: (folderId) => {
+        const { cards, folders } = get()
+        if (folderId === ALL_FOLDER) {
+          return [...cards].sort((a, b) => a.order - b.order)
+        }
+        const folder = folders.find(f => f.id === folderId)
+        if (!folder) return []
+        return folder.cardIds
+          .map(id => cards.find(c => c.id === id))
+          .filter((c): c is CardData => !!c)
+      },
+    }),
+    {
+      name: 'chord-cards',
+      partialize: (s) => ({ cards: s.cards, folders: s.folders, activeFolderId: s.activeFolderId }),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          _tree = rebuildTree(state.folders)
+          state.folderTree = _tree
+        }
+      },
     }
-  },
-
-  removeCardFromFolder: async (cardId, folderId) => {
-    const { cardFolderMap } = get();
-    await removeCardFromFolder(cardId, folderId);
-    const prev = cardFolderMap[cardId] ?? [];
-    set({ cardFolderMap: { ...cardFolderMap, [cardId]: prev.filter((f) => f !== folderId) } });
-  },
-
-  setActiveFolder: (id) => set({ activeFolder: id }),
-  setSortMode: (mode) => set({ sortMode: mode }),
-
-  getVisibleCards: () => {
-    const { cards, activeFolder, cardFolderMap, sortMode } = get();
-    let visible = activeFolder === null
-      ? cards
-      : cards.filter((c) => (cardFolderMap[c.id] ?? []).includes(activeFolder));
-
-    if (sortMode === 'title') {
-      visible = [...visible].sort((a, b) => a.title.localeCompare(b.title));
-    } else {
-      visible = [...visible].sort((a, b) => a.sort_order - b.sort_order);
-    }
-    return visible;
-  },
-}));
+  )
+)

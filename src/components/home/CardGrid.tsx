@@ -1,71 +1,104 @@
-import { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable';
-import { useNavigate } from 'react-router-dom';
-import { ChordCard } from './ChordCard';
-import type { CardRow } from '@/lib/supabase/cardsApi';
-import type { FolderRow } from '@/lib/supabase/foldersApi';
-import { useCardStore } from '@/store/useCardStore';
+import { useState, useMemo } from 'react'
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  rectSortingStrategy,
+  useSortable,
+  arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import { useCardStore, type CardData } from '../../store/useCardStore'
+import ChordCard from './ChordCard'
+import SortControl from './SortControl'
 
-interface CardGridProps {
-  cards: CardRow[];
-  folders: FolderRow[];
-  onMoveToFolder: (cardId: string) => void;
+type SortKey = 'updatedAt' | 'title' | 'custom'
+
+function SortableCard({ card, dragMode }: { card: CardData; dragMode: boolean }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id })
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      <ChordCard card={card} dragMode={dragMode || isDragging} />
+    </div>
+  )
 }
 
-export function CardGrid({ cards, folders, onMoveToFolder }: CardGridProps) {
-  const navigate = useNavigate();
-  const { removeCard } = useCardStore();
+interface Props {
+  onNewCard: () => void
+  onOpenCard: (id: string) => void
+}
+
+export default function CardGrid({ onNewCard, onOpenCard: _onOpenCard }: Props) {
+  const { activeFolderId, getCardsForFolder, reorderCards } = useCardStore()
+  const [sort, setSort] = useState<SortKey>('updatedAt')
+  const [dragMode, setDragMode] = useState(false)
+
+  const rawCards = getCardsForFolder(activeFolderId)
+
+  const cards = useMemo(() => {
+    if (sort === 'title') return [...rawCards].sort((a, b) => a.title.localeCompare(b.title, 'ko'))
+    if (sort === 'updatedAt') return [...rawCards].sort((a, b) => b.updatedAt - a.updatedAt)
+    return [...rawCards].sort((a, b) => a.order - b.order)
+  }, [rawCards, sort])
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  )
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIdx = cards.findIndex(c => c.id === active.id)
+    const newIdx = cards.findIndex(c => c.id === over.id)
+    const reordered = arrayMove(cards, oldIdx, newIdx)
+    reorderCards(activeFolderId, reordered.map(c => c.id))
+    setSort('custom')
+  }
 
   return (
-    <SortableContext items={cards.map((c) => c.id)} strategy={rectSortingStrategy}>
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
-          gap: 16,
-        }}
-      >
-        {/* 새 코드 진행 만들기 버튼 (첫 번째 셀) */}
-        <div
-          onClick={() => navigate('/editor')}
-          style={{
-            background: 'rgba(26,26,46,0.04)',
-            border: '2px dashed #c0c0d0',
-            borderRadius: 14,
-            minHeight: 160,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            cursor: 'pointer',
-            color: '#888',
-            transition: 'all 0.15s',
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.background = 'rgba(26,26,46,0.08)';
-            (e.currentTarget as HTMLElement).style.borderColor = '#8080c0';
-            (e.currentTarget as HTMLElement).style.color = '#3a3a8e';
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.background = 'rgba(26,26,46,0.04)';
-            (e.currentTarget as HTMLElement).style.borderColor = '#c0c0d0';
-            (e.currentTarget as HTMLElement).style.color = '#888';
-          }}
+    <div className="card-grid-wrapper">
+      <div className="card-grid-header">
+        <SortControl sort={sort} onSort={setSort} />
+        <button
+          className={`edit-mode-btn${dragMode ? ' active' : ''}`}
+          onClick={() => setDragMode(m => !m)}
         >
-          <span style={{ fontSize: 32 }}>+</span>
-          <span style={{ fontSize: 13 }}>새 코드 진행</span>
-        </div>
-
-        {cards.map((card) => (
-          <ChordCard
-            key={card.id}
-            card={card}
-            folders={folders}
-            onDelete={removeCard}
-            onMoveToFolder={onMoveToFolder}
-          />
-        ))}
+          {dragMode ? '완료' : '편집'}
+        </button>
       </div>
-    </SortableContext>
-  );
+
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={cards.map(c => c.id)} strategy={rectSortingStrategy}>
+          <div className="card-grid">
+            {/* New card button — always first in grid */}
+            <div className="card-grid__new" onClick={onNewCard}>
+              <span className="card-grid__new-icon">+</span>
+              <span>새 코드 진행</span>
+            </div>
+
+            {cards.map(card => (
+              dragMode
+                ? <SortableCard key={card.id} card={card} dragMode={dragMode} />
+                : (
+                  <div key={card.id} onClick={() => _onOpenCard(card.id)}>
+                    <ChordCard card={card} dragMode={false} />
+                  </div>
+                )
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
+    </div>
+  )
 }

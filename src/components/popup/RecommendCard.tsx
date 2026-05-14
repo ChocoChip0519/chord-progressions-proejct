@@ -1,88 +1,63 @@
-import { parseChord } from '@/lib/music/chordParser';
-import { MiniPiano } from '@/components/piano/MiniPiano';
-import type { RecommendCard as RecommendCardType } from '@/hooks/useRecommend';
-import { usePiano } from '@/hooks/usePiano';
+import { useState } from 'react'
+import MiniPiano from '../piano/MiniPiano'
+import { parseChord } from '../../lib/music/chordParser'
+import { usePiano } from '../../hooks/usePiano'
+import type { RecommendCandidate } from '../../lib/music/recommendEngine'
 
-interface RecommendCardProps {
-  card: RecommendCardType;
-  onSelect: (card: RecommendCardType) => void;
+interface Props {
+  candidate: RecommendCandidate
+  selected: boolean
+  onConfirm: (candidate: RecommendCandidate, variantChord: string) => void
 }
 
-export function RecommendCard({ card, onSelect }: RecommendCardProps) {
-  const { pressedMidi, pressKey, releaseKey, playChord } = usePiano();
+export default function RecommendCard({ candidate, selected, onConfirm }: Props) {
+  const { playChord } = usePiano()
+  const [activeVariant, setActiveVariant] = useState(0)
+  const variantChord = candidate.variants[activeVariant] ?? candidate.mainChord
+  const parsed = parseChord(variantChord)
+  const notes = parsed?.notes ?? candidate.notes
 
-  const parsed = parseChord(card.chord);
-  const highlightMidi = new Set(parsed?.notes ?? []);
+  const handlePlayInstant = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    playChord(notes)
+  }
 
-  function handleAutoPlay() {
-    if (parsed) playChord(parsed.notes);
+  const selectVariant = (e: React.MouseEvent, idx: number, chord: string) => {
+    e.stopPropagation()
+    setActiveVariant(idx)
+    const p = parseChord(chord)
+    if (p) playChord(p.notes)
   }
 
   return (
     <div
-      style={{
-        background: '#fff',
-        borderRadius: 16,
-        padding: 20,
-        minWidth: 200,
-        boxShadow: '0 4px 20px rgba(0,0,0,0.12)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 12,
-        cursor: 'pointer',
-        transition: 'transform 0.15s, box-shadow 0.15s',
-        border: '2px solid transparent',
-      }}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLElement).style.transform = 'translateY(-4px)';
-        (e.currentTarget as HTMLElement).style.boxShadow = '0 8px 28px rgba(0,0,0,0.18)';
-        (e.currentTarget as HTMLElement).style.borderColor = '#1a1a2e';
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
-        (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 20px rgba(0,0,0,0.12)';
-        (e.currentTarget as HTMLElement).style.borderColor = 'transparent';
-      }}
+      className={`rec-card${selected ? ' rec-card--selected' : ''}`}
+      onClick={() => onConfirm(candidate, variantChord)}
+      onMouseEnter={() => playChord(notes)}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: 22, fontWeight: 700 }}>{card.chord}</span>
-        <button
-          onClick={(e) => { e.stopPropagation(); handleAutoPlay(); }}
-          style={{
-            padding: '4px 12px',
-            borderRadius: 20,
-            border: '1px solid #ddd',
-            background: '#f5f5f5',
-            cursor: 'pointer',
-            fontSize: 12,
-          }}
-        >
-          ▶ 재생
-        </button>
-      </div>
+      <div className="rec-card__name">{variantChord}</div>
+      <div className="rec-card__score">빈도점수 {candidate.score}</div>
 
-      <MiniPiano
-        highlightMidi={highlightMidi}
-        pressedMidi={pressedMidi}
-        onPress={pressKey}
-        onRelease={releaseKey}
-      />
+      {/* Method A: instant play */}
+      <button className="rec-card__play" onClick={handlePlayInstant}>▶ 즉시 재생</button>
 
-      <button
-        onClick={() => onSelect(card)}
-        style={{
-          padding: '8px',
-          borderRadius: 8,
-          border: 'none',
-          background: '#1a1a2e',
-          color: '#fff',
-          cursor: 'pointer',
-          fontSize: 13,
-          fontWeight: 600,
-        }}
-      >
-        선택
-      </button>
+      {/* Method B: mini piano */}
+      <MiniPiano highlightMidi={notes} />
+
+      {/* Variant chips */}
+      {candidate.variants.length > 1 && (
+        <div className="rec-card__variants">
+          {candidate.variants.map((v, i) => (
+            <button
+              key={v}
+              className={`rec-card__variant${i === activeVariant ? ' active' : ''}`}
+              onClick={e => selectVariant(e, i, v)}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
-  );
+  )
 }

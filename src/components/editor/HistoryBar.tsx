@@ -1,40 +1,26 @@
-import type { ChordEntry } from '@/store/useEditorStore';
+import { useEditorStore } from '../../store/useEditorStore'
 
-interface HistoryBarProps {
-  history: ChordEntry[];
-}
-
-export function HistoryBar({ history }: HistoryBarProps) {
-  if (history.length === 0) {
-    return (
-      <div style={{ color: '#888', fontSize: 14, padding: '12px 0' }}>
-        건반을 눌러 코드를 입력하고 Enter로 확정하세요
-      </div>
-    );
-  }
+export default function HistoryBar() {
+  const { historyArr } = useEditorStore()
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '12px 0' }}>
-      {history.map((entry, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div
-            style={{
-              background: '#1a1a2e',
-              color: '#fff',
-              padding: '6px 16px',
-              borderRadius: 20,
-              fontSize: 15,
-              fontWeight: 600,
-              letterSpacing: 0.5,
-            }}
-          >
-            {entry.chord}
-          </div>
-          {i < history.length - 1 && (
-            <span style={{ color: '#888', fontSize: 18 }}>→</span>
-          )}
-        </div>
-      ))}
+    <div className="history-bar">
+      {historyArr.length === 0 ? (
+        <span className="history-bar__empty">
+          확정된 코드가 여기에 표시됩니다 — Enter로 확정, Backspace로 삭제
+        </span>
+      ) : (
+        historyArr.map((item, i) => (
+          <span key={i} className="history-bar__item">
+            {i > 0 && <span className="history-bar__arrow">→</span>}
+            <span className={`chord-chip${i === historyArr.length - 1 ? ' chord-chip--last' : ''}`}>
+              <span className="chord-chip__idx">{i + 1}</span>
+              {item.name}
+            </span>
+          </span>
+        ))
+      )}
+      <span className="history-bar__hint">← → 로 코드 탐색</span>
     </div>
-  );
+  )
 }

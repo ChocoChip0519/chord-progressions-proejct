@@ -1,108 +1,53 @@
-import { useEffect } from 'react';
-import { useEditorStore } from '@/store/useEditorStore';
-import { useRecommend, type RecommendCard as RecommendCardType } from '@/hooks/useRecommend';
-import { HistoryBar } from '@/components/editor/HistoryBar';
-import { PianoKeyboard } from '@/components/piano/PianoKeyboard';
-import { RecommendCard } from './RecommendCard';
-import { usePiano } from '@/hooks/usePiano';
-import { detectChordFromMidi } from '@/lib/music/chordParser';
-import { chordToDegree } from '@/lib/music/degreeConverter';
+import RecommendCard from './RecommendCard'
+import { useEditorStore, PAGE_SIZE } from '../../store/useEditorStore'
+import type { RecommendCandidate } from '../../lib/music/recommendEngine'
 
-interface RecommendPopupProps {
-  isOpen: boolean;
-  onClose: () => void;
-}
+export default function RecommendPopup() {
+  const {
+    showRecommend, recommendQueue, recommendPage,
+    recommendPagePrev, recommendPageNext,
+    closeRecommend, confirmFromRecommend,
+  } = useEditorStore()
 
-export function RecommendPopup({ isOpen, onClose }: RecommendPopupProps) {
-  const history = useEditorStore((s) => s.getHistory());
-  const { mode, tonicMidi, confirmChord } = useEditorStore();
-  const { visibleCards, next, prev, selectCard } = useRecommend();
-  const { pressedMidi, recommendMidi, pressKey, releaseKey } = usePiano();
+  if (!showRecommend) return null
 
-  useEffect(() => {
-    if (!isOpen) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-      if (e.key === 'ArrowRight') next();
-      if (e.key === 'ArrowLeft') prev();
-      if (e.key === 'Enter') {
-        const chord = detectChordFromMidi([...pressedMidi]);
-        if (chord) {
-          const degree = chordToDegree(chord, tonicMidi, mode) ?? '';
-          confirmChord({ chord, degree });
-          onClose();
-        }
-      }
-    }
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [isOpen, onClose, next, prev, pressedMidi, mode, tonicMidi, confirmChord]);
+  const all = recommendQueue.toArray()
+  const page = all.slice(recommendPage * PAGE_SIZE, (recommendPage + 1) * PAGE_SIZE)
+  const canPrev = recommendPage > 0
+  const canNext = (recommendPage + 1) * PAGE_SIZE < all.length
 
-  if (!isOpen) return null;
+  const handleConfirm = (candidate: RecommendCandidate, variantChord: string) => {
+    confirmFromRecommend(candidate, variantChord)
+  }
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(10,10,20,0.85)',
-        zIndex: 50,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 24,
-        padding: 32,
-        overflowY: 'auto',
-      }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 12, padding: 16 }}>
-        <div style={{ color: '#aaa', fontSize: 12, marginBottom: 6 }}>코드 진행 히스토리</div>
-        <div style={{ color: '#fff' }}>
-          <HistoryBar history={history} />
-        </div>
+    <div className="rec-popup">
+      <div className="rec-popup__label">
+        다음 코드 추천 <span className="rec-popup__count">({all.length}개)</span>
       </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ color: '#fff', fontSize: 14 }}>추천 코드</span>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={prev} style={navBtnStyle}>‹</button>
-            <button onClick={next} style={navBtnStyle}>›</button>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          {visibleCards.map((card: RecommendCardType) => (
-            <RecommendCard key={card.degree + card.chord} card={card} onSelect={(c) => { selectCard(c); onClose(); }} />
+      <div className="rec-popup__row">
+        <button
+          className="rec-popup__nav"
+          disabled={!canPrev}
+          onClick={recommendPagePrev}
+        >‹</button>
+        <div className="rec-popup__cards">
+          {page.map(c => (
+            <RecommendCard
+              key={c.degree + c.mainChord}
+              candidate={c}
+              selected={false}
+              onConfirm={handleConfirm}
+            />
           ))}
-          {visibleCards.length === 0 && (
-            <div style={{ color: '#888', fontSize: 14 }}>코드를 먼저 입력하세요</div>
-          )}
         </div>
+        <button
+          className="rec-popup__nav"
+          disabled={!canNext}
+          onClick={recommendPageNext}
+        >›</button>
       </div>
-
-      <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 12, padding: 16 }}>
-        <div style={{ color: '#aaa', fontSize: 12, marginBottom: 10 }}>직접 연주하기 (Enter로 확정)</div>
-        <PianoKeyboard
-          pressedMidi={pressedMidi}
-          recommendMidi={recommendMidi}
-          onPress={pressKey}
-          onRelease={releaseKey}
-        />
-      </div>
+      <div className="rec-popup__hint">카드 클릭으로 확정 · Esc로 닫기</div>
     </div>
-  );
+  )
 }
-
-const navBtnStyle: React.CSSProperties = {
-  width: 36,
-  height: 36,
-  borderRadius: '50%',
-  border: '1px solid rgba(255,255,255,0.3)',
-  background: 'transparent',
-  color: '#fff',
-  fontSize: 18,
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-};

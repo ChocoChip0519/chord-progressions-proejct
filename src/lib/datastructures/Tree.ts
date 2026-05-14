@@ -1,58 +1,87 @@
 export interface TreeNode<T> {
-  id: string;
-  data: T;
-  children: TreeNode<T>[];
-  parentId: string | null;
+  id: string
+  data: T
+  children: TreeNode<T>[]
+  parentId: string | null
 }
 
 export class Tree<T> {
-  root: TreeNode<T> | null = null;
-  private nodeMap: Map<string, TreeNode<T>> = new Map();
+  private nodes = new Map<string, TreeNode<T>>()
+  private rootIds: string[] = []
 
-  insert(node: TreeNode<T>, parentId: string | null = null): void {
-    this.nodeMap.set(node.id, node);
-
-    if (parentId === null) {
-      if (!this.root) {
-        this.root = node;
-      } else {
-        this.root.children.push(node);
-      }
-      return;
-    }
-
-    const parent = this.nodeMap.get(parentId);
-    if (parent) {
-      node.parentId = parentId;
-      parent.children.push(node);
-    }
+  addRoot(id: string, data: T): TreeNode<T> {
+    const node: TreeNode<T> = { id, data, children: [], parentId: null }
+    this.nodes.set(id, node)
+    this.rootIds.push(id)
+    return node
   }
 
-  remove(nodeId: string): void {
-    const node = this.nodeMap.get(nodeId);
-    if (!node) return;
+  addChild(parentId: string, id: string, data: T): TreeNode<T> | null {
+    const parent = this.nodes.get(parentId)
+    if (!parent) return null
+    const node: TreeNode<T> = { id, data, children: [], parentId }
+    this.nodes.set(id, node)
+    parent.children.push(node)
+    return node
+  }
 
+  remove(id: string): boolean {
+    const node = this.nodes.get(id)
+    if (!node) return false
+    // recursively remove children
+    for (const child of [...node.children]) {
+      this.remove(child.id)
+    }
     if (node.parentId) {
-      const parent = this.nodeMap.get(node.parentId);
+      const parent = this.nodes.get(node.parentId)
       if (parent) {
-        parent.children = parent.children.filter((c) => c.id !== nodeId);
+        parent.children = parent.children.filter(c => c.id !== id)
       }
-    } else if (this.root?.id === nodeId) {
-      this.root = null;
+    } else {
+      this.rootIds = this.rootIds.filter(r => r !== id)
     }
-
-    this.nodeMap.delete(nodeId);
+    this.nodes.delete(id)
+    return true
   }
 
-  findById(nodeId: string): TreeNode<T> | null {
-    return this.nodeMap.get(nodeId) ?? null;
+  find(id: string): TreeNode<T> | null {
+    return this.nodes.get(id) ?? null
   }
 
-  toFlat(): TreeNode<T>[] {
-    return Array.from(this.nodeMap.values());
+  roots(): TreeNode<T>[] {
+    return this.rootIds.map(id => this.nodes.get(id)!).filter(Boolean)
   }
 
-  get size(): number {
-    return this.nodeMap.size;
+  allNodes(): TreeNode<T>[] {
+    return [...this.nodes.values()]
+  }
+
+  rename(id: string, data: T): boolean {
+    const node = this.nodes.get(id)
+    if (!node) return false
+    node.data = data
+    return true
+  }
+
+  move(id: string, newParentId: string | null): boolean {
+    const node = this.nodes.get(id)
+    if (!node) return false
+    // detach from old parent
+    if (node.parentId) {
+      const old = this.nodes.get(node.parentId)
+      if (old) old.children = old.children.filter(c => c.id !== id)
+    } else {
+      this.rootIds = this.rootIds.filter(r => r !== id)
+    }
+    // attach to new parent
+    node.parentId = newParentId
+    if (newParentId) {
+      const newParent = this.nodes.get(newParentId)
+      if (!newParent) return false
+      newParent.children.push(node)
+    } else {
+      this.rootIds.push(id)
+    }
+    return true
   }
 }
