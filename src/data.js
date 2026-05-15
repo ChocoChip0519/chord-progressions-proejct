@@ -1,4 +1,7 @@
+import SONGS from './data/songs.json';
+
 export const CHORD_DATA = {
+  songs: SONGS,
   transitions: {
     pop: {
       I:   { IV: 0.28, V: 0.25, vi: 0.23, ii: 0.13, iii: 0.07 },

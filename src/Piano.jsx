@@ -44,42 +44,62 @@ function Piano({
   const [activeNotes, setActiveNotes] = useState(new Set());
   const [previewKey, setPreviewKey] = useState(null);
   const containerRef = useRef(null);
+  const pendingChordRef = useRef(pendingChord);
+  const pianoModeRef = useRef(pianoMode);
 
+  pendingChordRef.current = pendingChord;
+  pianoModeRef.current = pianoMode;
   const noteArr = [...activeNotes];
   const detected = pianoMode === "free"
     ? MUSIC.detectChord(noteArr, session.key, session.mode)
     : null;
 
-  const triggerKey = useCallback((note, octave) => {
-    const fullNote = note + octave;
-    AUDIO.playNote(fullNote, "16n");
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
 
-    if (pianoMode === "free") {
-      setActiveNotes(prev => {
-        const next = new Set(prev);
-        next.add(fullNote);
-        return next;
-      });
-      setTimeout(() => {
-        setActiveNotes(prev => {
-          const next = new Set(prev);
-          next.delete(fullNote);
-          return next;
-        });
-      }, 600);
+  const pressKey = useCallback((note, octave) => {
+    const fullNote = note + octave;
+
+    if (pianoModeRef.current === "free") {
+      AUDIO.attackNote(fullNote);
+      setActiveNotes(prev => { const n = new Set(prev); n.add(fullNote); return n; });
     } else {
-      const ch = MUSIC.buildChordFromNote(note, octave, session.key, session.mode, session.genre);
-      if (pendingChord && pendingChord.rootNote === ch.rootNote && pendingChord.name === ch.name) {
+      const s = sessionRef.current;
+      const ch = MUSIC.buildChordFromNote(note, octave, s.key, s.mode, s.genre);
+      const pc = pendingChordRef.current;
+      if (pc && pc.rootNote === ch.rootNote && pc.name === ch.name) {
         onAddChord(ch);
         setPendingChord(null);
         setPreviewKey(null);
       } else {
+        if (pc) pc.notes.forEach(n => AUDIO.releaseNote(n));
         setPendingChord(ch);
         setPreviewKey({ note, octave });
-        AUDIO.playChord(ch.notes, "8n");
+        ch.notes.forEach(n => AUDIO.attackNote(n));
       }
     }
-  }, [pianoMode, session, pendingChord, onAddChord, setPendingChord]);
+  }, [onAddChord, setPendingChord]);
+
+  const releaseKey = useCallback((note, octave) => {
+    const fullNote = note + octave;
+
+    if (pianoModeRef.current === "free") {
+      AUDIO.releaseNote(fullNote);
+      setActiveNotes(prev => { const n = new Set(prev); n.delete(fullNote); return n; });
+    } else {
+      const pc = pendingChordRef.current;
+      if (pc) pc.notes.forEach(n => AUDIO.releaseNote(n));
+    }
+  }, []);
+
+  const detectedRef = useRef(detected);
+  detectedRef.current = detected;
+  const onAddChordRef = useRef(onAddChord);
+  onAddChordRef.current = onAddChord;
+  const setPendingChordRef = useRef(setPendingChord);
+  setPendingChordRef.current = setPendingChord;
+
+  const pressedKeys = useRef(new Set());
 
   useEffect(() => {
     const isTypingInField = () => {
@@ -88,20 +108,22 @@ function Piano({
       const tag = el.tagName;
       return tag === "INPUT" || tag === "TEXTAREA" || el.isContentEditable;
     };
-    const pressed = new Set();
-    const handler = (e) => {
+
+    const downHandler = (e) => {
       if (isTypingInField()) return;
       if (e.repeat) return;
 
       if (e.code === "Space") {
         e.preventDefault();
-        if (pendingChord) {
-          onAddChord(pendingChord);
-          setPendingChord(null);
+        const pc = pendingChordRef.current;
+        const det = detectedRef.current;
+        if (pc) {
+          onAddChordRef.current(pc);
+          setPendingChordRef.current(null);
           setPreviewKey(null);
           setActiveNotes(new Set());
-        } else if (pianoMode === "free" && detected) {
-          onAddChord(detected);
+        } else if (pianoModeRef.current === "free" && det) {
+          onAddChordRef.current(det);
           setActiveNotes(new Set());
         }
         return;
@@ -110,19 +132,28 @@ function Piano({
       const k = e.key.toUpperCase();
       const w = WHITE_KEYS.find(x => x.kb.toUpperCase() === k);
       const b = BLACK_KEYS.find(x => x.kb.toUpperCase() === k);
-      if (w && !pressed.has(k)) { pressed.add(k); triggerKey(w.note, w.octave); }
-      if (b && !pressed.has(k)) { pressed.add(k); triggerKey(b.note, b.octave); }
+      if (w && !pressedKeys.current.has(k)) { pressedKeys.current.add(k); pressKey(w.note, w.octave); }
+      if (b && !pressedKeys.current.has(k)) { pressedKeys.current.add(k); pressKey(b.note, b.octave); }
     };
+
     const upHandler = (e) => {
-      pressed.delete(e.key.toUpperCase());
+      if (isTypingInField()) return;
+      const k = e.key.toUpperCase();
+      if (!pressedKeys.current.has(k)) return;
+      pressedKeys.current.delete(k);
+      const w = WHITE_KEYS.find(x => x.kb.toUpperCase() === k);
+      const b = BLACK_KEYS.find(x => x.kb.toUpperCase() === k);
+      if (w) releaseKey(w.note, w.octave);
+      if (b) releaseKey(b.note, b.octave);
     };
-    window.addEventListener("keydown", handler);
+
+    window.addEventListener("keydown", downHandler);
     window.addEventListener("keyup", upHandler);
     return () => {
-      window.removeEventListener("keydown", handler);
+      window.removeEventListener("keydown", downHandler);
       window.removeEventListener("keyup", upHandler);
     };
-  }, [pianoMode, detected, pendingChord, onAddChord, triggerKey, setPendingChord]);
+  }, [pressKey, releaseKey]);
 
   useEffect(() => {
     setActiveNotes(new Set());
@@ -211,7 +242,9 @@ function Piano({
               + (inCh && !isPrev ? " in-chord" : "");
             return (
               <div key={i} className={cls}
-                onMouseDown={() => triggerKey(w.note, w.octave)}>
+                onMouseDown={() => pressKey(w.note, w.octave)}
+                onMouseUp={() => releaseKey(w.note, w.octave)}
+                onMouseLeave={() => releaseKey(w.note, w.octave)}>
                 {pianoMode === "chord" ? (
                   <>
                     <span className="key-label chord">{chordLabel(w.note, w.octave)}</span>
@@ -239,7 +272,9 @@ function Piano({
             return (
               <div key={i} className={cls}
                 style={{ left }}
-                onMouseDown={(e) => { e.stopPropagation(); triggerKey(b.note, b.octave); }}>
+                onMouseDown={(e) => { e.stopPropagation(); pressKey(b.note, b.octave); }}
+                onMouseUp={(e) => { e.stopPropagation(); releaseKey(b.note, b.octave); }}
+                onMouseLeave={(e) => { e.stopPropagation(); releaseKey(b.note, b.octave); }}>
                 {pianoMode === "chord" ? (
                   <span className="key-label chord" style={{ fontSize: 9 }}>
                     {session.key ? chordLabel(b.note, b.octave) : b.note}

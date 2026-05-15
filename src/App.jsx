@@ -81,17 +81,52 @@ function App() {
 
     const last = progression[progression.length - 1];
 
-    let usedKey = null, usedMode = null, diatonic = null;
-    if (hasKey) {
-      usedKey = session.key; usedMode = session.mode;
-      diatonic = MUSIC.getDiatonicRomans(genre, session.mode);
-    } else if (inferredKey && inferredKey.confidence >= 0.7) {
-      usedKey = inferredKey.key; usedMode = inferredKey.mode;
-      diatonic = MUSIC.getDiatonicRomans(genre, inferredKey.mode);
-    } else {
+    const keyConfirmed = hasKey || (inferredKey && inferredKey.confidence >= 0.7);
+
+    // 키 미확정 → 절대음명 패턴 매칭
+    if (!keyConfirmed) {
+      const songs = CHORD_DATA.songs[genre] || [];
+      const patternRecs = MUSIC.getAbsolutePatternRecs(progression, songs);
+
+      // 패턴 매칭 결과 있으면 사용, 없으면 장르 전이 가중치 폴백
+      if (patternRecs.length) {
+        return patternRecs.map(r => ({
+          romanNumeral: "?",
+          name: r.name,
+          weight: r.weight,
+          source: "genre",
+          mood: "",
+          chord: MUSIC.romanToChord("I", r.rootNote, "major"),
+        }));
+      }
+      // 폴백: 첫 코드 근음 기준으로 장르 전이 가중치
       const implied = MUSIC.impliedTonicFromProgression(progression);
-      if (implied) { usedKey = implied.key; usedMode = implied.mode; }
+      const usedKey2 = implied ? implied.key : "C";
+      const usedMode2 = implied ? implied.mode : "major";
+      let lastRoman2 = last.romanNumeral;
+      if (!lastRoman2 || lastRoman2 === "?") {
+        lastRoman2 = MUSIC.getRelativeRoman(last, usedKey2, usedMode2);
+      }
+      if (!lastRoman2 || lastRoman2 === "?") return [];
+      if (genre === "blues" && !lastRoman2.endsWith("7")) lastRoman2 = lastRoman2 + "7";
+      const fallbackRecs = graph.getRecommendations(lastRoman2, null, 4);
+      return fallbackRecs.map(r => {
+        const ch = MUSIC.romanToChord(r.romanNumeral, usedKey2, usedMode2);
+        return {
+          romanNumeral: r.romanNumeral,
+          name: ch ? ch.name : r.romanNumeral,
+          weight: r.weight,
+          source: "genre",
+          mood: CHORD_DATA.chordMoods[r.romanNumeral] || "",
+          chord: ch,
+        };
+      });
     }
+
+    // 키 확정 → 도수 기반 전이 가중치
+    const usedKey = hasKey ? session.key : inferredKey.key;
+    const usedMode = hasKey ? session.mode : inferredKey.mode;
+    const diatonic = MUSIC.getDiatonicRomans(genre, usedMode);
 
     let lastRoman = last.romanNumeral;
     if ((!lastRoman || lastRoman === "?") && usedKey) {
@@ -103,17 +138,13 @@ function App() {
 
     const baseRecs = graph.getRecommendations(lastRoman, diatonic, 4);
 
-    const source = (hasKey || (inferredKey && inferredKey.confidence >= 0.7)) ? "key" : "genre";
-
     return baseRecs.map(r => {
-      const dispKey = usedKey || "C";
-      const dispMode = usedMode || "major";
-      const ch = MUSIC.romanToChord(r.romanNumeral, dispKey, dispMode);
+      const ch = MUSIC.romanToChord(r.romanNumeral, usedKey, usedMode);
       return {
         romanNumeral: r.romanNumeral,
-        name: usedKey && ch ? ch.name : r.romanNumeral,
+        name: ch ? ch.name : r.romanNumeral,
         weight: r.weight,
-        source,
+        source: "key",
         mood: CHORD_DATA.chordMoods[r.romanNumeral] || "",
         chord: ch,
       };

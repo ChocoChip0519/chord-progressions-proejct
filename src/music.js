@@ -2,8 +2,10 @@ const NOTES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
 const MAJOR_INTERVALS = [0,2,4,5,7,9,11];
 const MINOR_INTERVALS = [0,2,3,5,7,8,10];
 
+const FLAT_TO_SHARP = { Cb:"B", Db:"C#", Eb:"D#", Fb:"E", Gb:"F#", Ab:"G#", Bb:"A#" };
 function pc(note) {
-  return NOTES.indexOf(note);
+  const n = FLAT_TO_SHARP[note] ?? note;
+  return NOTES.indexOf(n);
 }
 function noteFromPc(p) {
   return NOTES[((p % 12) + 12) % 12];
@@ -235,6 +237,37 @@ function impliedTonicFromProgression(progression) {
   return { key: first.rootNote, mode };
 }
 
+// 키 미확정 시 절대음명 패턴 매칭으로 다음 코드 추천
+// progression: ChordEntry[], songs: 장르별 곡 배열
+// 반환: [{ name, rootNote, quality, weight }] (weight 내림차순, 최대 4개)
+function getAbsolutePatternRecs(progression, songs) {
+  if (!progression.length || !songs || !songs.length) return [];
+
+  const progNames = progression.map(c => c.rootNote);
+  const nextIdx = progression.length;
+
+  // 현재 진행과 같은 prefix를 가진 곡들 필터
+  const matched = songs.filter(song => {
+    if (song.absolute.length <= nextIdx) return false;
+    return progNames.every((name, i) => song.absolute[i] === name);
+  });
+
+  if (!matched.length) return [];
+
+  // 다음 코드 카운트
+  const counts = {};
+  for (const song of matched) {
+    const next = song.absolute[nextIdx];
+    counts[next] = (counts[next] || 0) + 1;
+  }
+
+  const total = Object.values(counts).reduce((s, v) => s + v, 0);
+  return Object.entries(counts)
+    .map(([name, count]) => ({ name, rootNote: name, quality: "maj", weight: count / total }))
+    .sort((a, b) => b.weight - a.weight)
+    .slice(0, 4);
+}
+
 export const MUSIC = {
   NOTES,
   pc, noteFromPc, midi, midiToNoteName,
@@ -247,4 +280,5 @@ export const MUSIC = {
   parseRoman,
   getRelativeRoman,
   impliedTonicFromProgression,
+  getAbsolutePatternRecs,
 };

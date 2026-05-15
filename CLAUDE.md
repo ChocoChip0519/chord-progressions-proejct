@@ -29,6 +29,7 @@
 ```
 src/
 ├── data/
+│   ├── songs.json             # 장르별 실제 곡 코드진행 (절대음+도수) — 패턴 매칭용
 │   ├── transitions.json       # Graph 간선 (Hooktheory 기반 실데이터)
 │   ├── progressions.json      # 장르별 대표 진행 (자동생성용, 키 필요)
 │   ├── startingChords.json    # 장르별 시작 코드 (진행 0개일 때 추천)
@@ -70,6 +71,23 @@ src/
 | 블루스 | 12-bar 패턴 (사실상 표준) | 직접 하드코딩 |
 
 > McGill Billboard는 절대 코드명 → 로마자 변환에 별도 키 추정 필요 → 범위 초과, 제외.
+
+### `songs.json`
+
+장르별 실제 곡 코드진행 데이터. 키 미확정 시 절대음명 패턴 매칭에 사용.
+
+```json
+{
+  "pop": [
+    { "title": "Let It Be", "key": "C", "mode": "major",
+      "absolute": ["C","G","Am","F"],
+      "roman":    ["I","V","vi","IV"] }
+  ]
+}
+```
+
+- `absolute`: 절대음명 진행 — 키 미확정 시 패턴 매칭에 사용
+- `roman`: 도수 진행 — 참고용 (현재 앱에서 직접 사용하지 않음)
 
 ### `transitions.json`
 
@@ -288,16 +306,21 @@ buildDiatonicChord(rootNote: string, key: string | null, mode: Mode, genre: Genr
 
 **자동생성 (✨)**: 키 미설정 시 비활성화 + "키를 먼저 설정해주세요" 툴팁.
 
-### 추천 점수 공식
+### 추천 로직
 
-| 상황 | 공식 |
+| 상황 | 추천 방식 |
 |---|---|
-| 코드 0개 | startingChords[genre] 카드 |
-| 코드 1개+, 키 없음 | `score = genre_weight` |
-| 코드 3개+, 추론 신뢰도 ≥ 0.7 | `score = 0.7 × genre + 0.3 × diatonic(inferred)` |
-| 키 직접 설정 | `score = 0.6 × genre + 0.4 × diatonic(selected)` |
+| 코드 0개 | `startingChords[genre]` 고정 카드 |
+| 코드 1개+, 키 미확정 (inferKey < 0.7) | `songs[genre]` 절대음명 패턴 매칭 |
+| 패턴 매칭 결과 없음 | 장르 전이 가중치 폴백 |
+| 코드 1개+, inferKey ≥ 0.7 (자동 전환) | 도수 기반 전이 가중치 + diatonic 필터 |
+| 키 직접 설정 | 도수 기반 전이 가중치 + diatonic 필터 |
 
-뱃지: 신뢰도 ≥ 0.7 → `💡 예상 키: C major` 표시. 클릭하면 확정.
+**절대음명 패턴 매칭**: `getAbsolutePatternRecs(progression, songs)` (`src/music.js`)
+- `songs[genre]`에서 현재 진행과 같은 prefix를 가진 곡들 필터
+- 그 곡들의 다음 코드 카운트 → 정규화 → weight 순 상위 4개 반환
+
+뱃지: inferKey 신뢰도 ≥ 0.7 → `💡 예상 키: C major` 자동 표시 + 추천 도수 기반 전환. 클릭하면 session.key로 확정.
 
 ---
 
