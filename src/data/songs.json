@@ -71,7 +71,7 @@
     { "title": "Solar",                  "key": "C",  "mode": "minor", "absolute": ["C","F","Bb","Eb","Ab","D","G","C"], "roman": ["i","iv","VII","III","VI","ii","V","i"] },
     { "title": "Honeysuckle Rose",       "key": "F",  "mode": "major", "absolute": ["F","D","G","C"],        "roman": ["I","vi","ii","V"] },
     { "title": "Oleo",                   "key": "Bb", "mode": "major", "absolute": ["Bb","G","C","F"],       "roman": ["I","vi","ii","V"] },
-    { "title": "Anthropology",           "key": "Bb", "mode": "major", "absolute": ["Bb","G","C","F"],       "ㅐroman": ["I","vi","ii","V"] },
+    { "title": "Anthropology",           "key": "Bb", "mode": "major", "absolute": ["Bb","G","C","F"],       "roman": ["I","vi","ii","V"] },
     { "title": "Four",                   "key": "Eb", "mode": "major", "absolute": ["Eb","F","Bb","Eb"],     "roman": ["I","ii","V","I"] },
     { "title": "Impressions",            "key": "D",  "mode": "minor", "absolute": ["D","Bb","C","D"],       "roman": ["i","VI","VII","i"] },
     { "title": "Minor Swing",            "key": "A",  "mode": "minor", "absolute": ["A","D","E","A"],        "roman": ["i","iv","V","i"] },

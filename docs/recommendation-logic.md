@@ -191,12 +191,16 @@ function getAbsolutePatternRecs(progression, songs):
 function getAbsolutePatternRecs(progression, songs) {
   if (!progression.length || !songs || !songs.length) return [];
 
-  const progNames = progression.map(c => c.rootNote);  // ["C", "A", "F"]
+  // pitch class(0~11)로 비교 — flat(Bb)/sharp(A#) 표기 불일치 해소
+  const progPcs = progression.map(c => pc(c.rootNote));
   const nextIdx = progression.length;
 
   const matched = songs.filter(song => {
     if (song.absolute.length <= nextIdx) return false;
-    return progNames.every((name, i) => song.absolute[i] === name);  // prefix 일치 확인
+    return progPcs.every((p, i) => {
+      const sp = pc(song.absolute[i]);
+      return sp >= 0 && sp === p;  // 숫자 비교: pc("A#") === pc("Bb") === 10
+    });
   });
 
   if (!matched.length) return [];
@@ -209,7 +213,12 @@ function getAbsolutePatternRecs(progression, songs) {
 
   const total = Object.values(counts).reduce((s, v) => s + v, 0);
   return Object.entries(counts)
-    .map(([name, count]) => ({ name, rootNote: name, quality: "maj", weight: count / total }))
+    .map(([name, count]) => {
+      // flat 표기를 sharp으로 정규화 (noteFromPc(pc("Bb")) = "A#")
+      const rootPc = pc(name);
+      const rootNote = rootPc >= 0 ? noteFromPc(rootPc) : name;
+      return { name: rootNote, rootNote, quality: "maj", weight: count / total };
+    })
     .sort((a, b) => b.weight - a.weight)
     .slice(0, 4);
 }
@@ -280,7 +289,7 @@ songs.json jazz에서 `absolute[0]==="D" && absolute[1]==="G"` 인 곡:
 → jazz songs에서 "D", "G" prefix 곡 없음 → `patternRecs = []` → 폴백  
 
 폴백: `impliedTonicFromProgression([Dm7, G7])` → `{ key:"D", mode:"minor" }`  
-→ `getRelativeRoman(G7, "D", "minor") = "IV"` → `graph.getRecommendations("IV", null, 4)`  
+→ `getRelativeRoman(G7, "D", "minor") = "IV7"` → `graph.getRecommendations("IV7", null, 4)`  
 → 임시 추천 반환 (mood 없음)
 
 코드 3개째 `[Dm7, G7, Cmaj7]` 입력 시:  
@@ -298,14 +307,17 @@ songs.json jazz에서 `absolute[0]==="D" && absolute[1]==="G"` 인 곡:
 ### 수도코드
 
 ```
-function getRecommendations(from, diatonic, topN=4):
+function getRecommendations(from, diatonic, topN=4, genre=null):
     neighbors = adj[from]           // 그래프에서 현재 코드의 이웃들
     if neighbors가 없으면: return []
 
     candidates = neighbors 전체 목록
 
     if diatonic 필터가 있으면:
-        candidates = diatonic에 포함된 코드만 남김 (bVII는 항상 허용)
+        candidates = diatonic에 포함된 코드만 남김
+        장르별 예외:
+          bVII  → genre === "rock" 일 때만 허용
+          bII7, VI7, II7 → genre === "jazz" 일 때만 허용 (재즈 고유 어법)
 
     weight 내림차순 정렬
     상위 topN개 반환
@@ -315,20 +327,25 @@ function getRecommendations(from, diatonic, topN=4):
 
 ```js
 // structures.js:18
-getRecommendations(from, diatonic, topN = 4) {
+getRecommendations(from, diatonic, topN = 4, genre = null) {
   const m = this.adj.get(from);
   if (!m) return [];
   let arr = [...m.entries()].map(([r, w]) => ({ romanNumeral: r, weight: w }));
   if (diatonic && diatonic.length) {
     const allowed = new Set(diatonic);
-    arr = arr.filter(x => allowed.has(x.romanNumeral) || x.romanNumeral === "bVII");
+    const JAZZ_EXTRAS = new Set(["bII7", "VI7", "II7"]);
+    arr = arr.filter(x =>
+      allowed.has(x.romanNumeral) ||
+      (genre === "rock" && x.romanNumeral === "bVII") ||
+      (genre === "jazz" && JAZZ_EXTRAS.has(x.romanNumeral))  // 삼전음 대리·부속 도미넌트
+    );
   }
   arr.sort((a, b) => b.weight - a.weight);
   return arr.slice(0, topN);
 }
 ```
 
-그래프 데이터 (transitions.json 일부):
+그래프 데이터 (data.js 일부):
 ```json
 "pop": {
   "I":   { "IV": 0.28, "V": 0.25, "vi": 0.23, "ii": 0.13, "iii": 0.07 },
@@ -338,7 +355,10 @@ getRecommendations(from, diatonic, topN = 4) {
   "I":   { "IV": 0.34, "V": 0.32, "vi": 0.19, "bVII": 0.09, "ii": 0.06 }
 },
 "jazz": {
-  "I":   { "vi": 0.30, "ii": 0.28, "IV": 0.22, "V": 0.20 }
+  "Imaj7":  { "vi7": 0.25, "ii7": 0.25, "IVmaj7": 0.20, "V7": 0.15, "VI7": 0.10, "bII7": 0.05 },
+  "ii7":    { "V7": 0.55, "bII7": 0.20, "IVmaj7": 0.12, "Imaj7": 0.08, "vi7": 0.05 },
+  "bII7":   { "Imaj7": 0.80, "vi7": 0.20 },
+  "VI7":    { "ii7": 0.70, "V7": 0.20, "IVmaj7": 0.10 }
 }
 ```
 
@@ -406,23 +426,31 @@ const fallbackRecs = graph.getRecommendations(lastRoman2, null, 4);
 ```js
 // App.jsx:129-139
 const diatonic = MUSIC.getDiatonicRomans("jazz", "major");
-// → ["I","ii","iii","IV","V","vi","viiº"]
+// → ["Imaj7","ii7","iii7","IVmaj7","V7","vi7","viiº"]
+//   (피아노 스냅용 순수 다이어토닉 7화음)
 
-graph.getRecommendations("I", diatonic, 4)
+graph.getRecommendations("Imaj7", diatonic, 4, "jazz")
 ```
 
-`adj["I"] = { vi:0.30, ii:0.28, IV:0.22, V:0.20 }` (jazz 가중치 — pop과 다름)
+`adj["Imaj7"] = { vi7:0.25, ii7:0.25, IVmaj7:0.20, V7:0.15, VI7:0.10, bII7:0.05 }`
 
-diatonic 필터 → 전부 통과
+diatonic 필터 + jazz 예외(JAZZ_EXTRAS) 적용:
+- `vi7`, `ii7`, `IVmaj7`, `V7` → diatonic 목록에 있으므로 통과
+- `VI7` → JAZZ_EXTRAS에 포함, genre === "jazz" → 통과 (부속 도미넌트)
+- `bII7` → JAZZ_EXTRAS에 포함, genre === "jazz" → 통과 (삼전음 대리코드)
 
 | 순위 | romanNumeral | weight | romanToChord("?", "C", "major") | 화면 표시 |
 |------|-------------|--------|-------------------------------|---------|
-| 1 | vi | 0.30 | **Am** | `vi · 감성적이고 슬픈 느낌` |
-| 2 | ii | 0.28 | **Dm** | `ii · 부드럽게 흘러가는 느낌` |
-| 3 | IV | 0.22 | **F** | `IV · 풍성하고 따뜻하게 열리는 느낌` |
-| 4 | V | 0.20 | **G** | `V · 긴장감 — 뭔가 일어날 것 같은 느낌` |
+| 1 | vi7 | 0.25 | **Am7** | `vi7 · 달콤하고 감성적인 느낌` |
+| 2 | ii7 | 0.25 | **Dm7** | `ii7 · 자연스럽게 흘러가는 느낌` |
+| 3 | IVmaj7 | 0.20 | **Fmaj7** | `IVmaj7 · 깊고 따뜻하게 열리는 느낌` |
+| 4 | V7 | 0.15 | **G7** | `V7 · 강하게 해결을 원하는 긴장감` |
 
-케이스 1(Pop I → IV 1위)과 다르게 재즈는 **vi가 1위** → 장르별 가중치 차이가 추천 결과를 바꿈
+> topN=4이므로 VI7(0.10), bII7(0.05)는 이번 추천에서 잘림.  
+> **ii7 선택 후** 추천: `adj["ii7"] = { V7:0.55, bII7:0.20, ... }` → **Db7(bII7) 20%로 등장**  
+> 이것이 팝에서는 절대 나오지 않는 재즈 고유 어법 (삼전음 대리코드)
+
+케이스 1(Pop I → Fmaj 1위)과 달리 재즈는 **Am7·Dm7 공동 1위**, G7(V7)이 아닌 **Db7(bII7)이 추천** → 장르 차이가 코드 품질과 크로매틱 어법 모두에서 드러남
 
 ---
 
@@ -433,6 +461,7 @@ diatonic 필터 → 전부 통과
 | **설정** | 장르 + 키 직접 입력 | 장르만, 키 미도출 | 장르만, 키 자동 도출 |
 | **`inferKey`** | 호출 스킵 | `[]` 반환 | 키 반환 (confidence ≥ 0.7) |
 | **`getAbsolutePatternRecs`** | 호출 스킵 | 핵심 동작 | 키 도출 전까지만 동작 |
-| **`getRecommendations`** | diatonic 필터 | `null` 필터 (폴백) | diatonic 필터 |
+| **`getRecommendations`** | diatonic 필터 | `null` 필터 (폴백) | diatonic 필터 + jazz 예외 |
 | **mood 설명** | ✅ | ❌ (패턴 매칭 중) | ✅ |
-| **로마자 표시** | `IV`, `V`, `vi`... | `?` | `vi`, `ii`, `IV`... |
+| **로마자 표시** | `IV`, `V`, `vi`... | `?` | `vi7`, `ii7`, `IVmaj7`... |
+| **재즈 고유 어법** | — | — | `bII7`(삼전음), `VI7`(부속 도미넌트) 등장 가능 |

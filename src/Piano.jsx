@@ -51,7 +51,7 @@ function Piano({
   pianoModeRef.current = pianoMode;
   const noteArr = [...activeNotes];
   const detected = pianoMode === "free"
-    ? MUSIC.detectChord(noteArr, session.key, session.mode)
+    ? MUSIC.detectChord(noteArr, session.key, session.mode, session.genre)
     : null;
 
   const sessionRef = useRef(session);
@@ -201,7 +201,7 @@ function Piano({
     );
     else status = <span>감지된 코드가 없어요</span>;
   } else {
-    status = <span>건반을 누른 뒤 Space로 추가</span>;
+    status = <span>{session.key ? "건반을 누른 뒤 Space로 추가" : "건반을 누른 뒤 Space로 추가 (키 미설정 시 장조로 고정)"}</span>;
   }
 
   return (

@@ -1,7 +1,7 @@
 # ChordFlow — 개발 로드맵
 
-> 작성일: 2026-05-16  
-> 현재 완성도: ~75% (핵심 기능 동작, 저장/공유/편집 미구현)
+> 작성일: 2026-05-16 / 마지막 업데이트: 2026-05-17  
+> 현재 완성도: ~85% (핵심 기능 동작 + 버그 수정 완료, 저장/공유/편집 미구현)
 
 ---
 
@@ -9,20 +9,20 @@
 
 ### 버그 / 데이터 오류
 
-| # | 파일 | 문제 | 영향 |
-|---|------|------|------|
-| B1 | `src/data/songs.json` L74 | `"ㅐroman"` 오타 (한글 자소 혼입) | 패턴 매칭에서 해당 곡 무시됨 |
-| B2 | `src/data/songs.json` | Blues 곡 데이터 없음 | Blues 키 추론·패턴 매칭 불능 |
-| B3 | `src/music.js` ~L266 | 패턴 매칭 반환 시 `quality`가 항상 `"maj"` | 도미넌트·마이너 코드가 메이저로 표시됨 |
-| B4 | `src/music.js` ~L182-206 | 키 추론이 루트 포함 여부만 체크 (코드 품질 무시) | C장조 / F장조 혼동 발생 |
-| B5 | `src/audio.js` | `window.__STOP_PLAYBACK` 전역 플래그로 재생 제어 | 빠른 연속 재생 시 타이밍 깨짐 |
-| B6 | `src/Piano.jsx` | 코드 모드 빠른 클릭 시 이전 프리뷰 해제 안 됨 | 신스 보이스 누락(leak) |
+| # | 파일 | 문제 | 영향 | 상태 |
+|---|------|------|------|------|
+| B1 | `src/data/songs.json` L74 | `"ㅐroman"` 오타 (한글 자소 혼입) | 패턴 매칭에서 해당 곡 무시됨 | ✅ 완료 |
+| B2 | `src/data/songs.json` | Blues 곡 데이터 없음 | Blues 키 추론·패턴 매칭 불능 | 미완료 |
+| B3 | `src/music.js` ~L266 | 패턴 매칭 반환 시 `quality`가 항상 `"maj"` | 도미넌트·마이너 코드가 메이저로 표시됨 | 미완료 |
+| B4 | `src/music.js` ~L182-206 | 키 추론이 루트 포함 여부만 체크 (코드 품질 무시) | C장조 / F장조 혼동 발생 | 미완료 |
+| B5 | `src/audio.js` | `window.__STOP_PLAYBACK` 전역 플래그로 재생 제어 | 빠른 연속 재생 시 타이밍 깨짐 | ✅ 완료 |
+| B6 | `src/Piano.jsx` | 코드 모드 빠른 클릭 시 이전 프리뷰 해제 안 됨 | 신스 보이스 누락(leak) | 미완료 |
 
 ### 미구현 기능
 
 | # | 항목 | 현황 |
 |---|------|------|
-| M1 | `PlaybackQueue` 자료구조 | `structures.js`에 없음 — 단순 루프로 대체 중 |
+| M1 | `PlaybackQueue` 자료구조 | ✅ 완료 — `structures.js`에 구현, `audio.js`에서 사용 |
 | M2 | localStorage 세션/진행 저장 | 완전 미구현 |
 | M3 | 단조(minor) 다이어토닉 완전 지원 | 일부 하드코딩, 코드 감지 미검증 |
 | M4 | 모바일 반응형 레이아웃 | 데스크톱 전용 |
@@ -45,10 +45,10 @@
 
 ### Phase 0 — 즉시 버그 수정 (1~2일)
 
-- [ ] `songs.json` L74 오타 수정 (`"ㅐroman"` → `"roman"`)
+- [x] `songs.json` L74 오타 수정 (`"ㅐroman"` → `"roman"`)
 - [ ] Blues 곡 데이터 10개 이상 추가 (12-bar 표준 진행 중심)
 - [ ] 패턴 매칭 반환 품질 수정 (`quality` 필드를 songs.json에서 읽기)
-- [ ] `PlaybackQueue` 클래스 `structures.js`에 추가 후 `audio.js`에 연결
+- [x] `PlaybackQueue` 클래스 `structures.js`에 추가 후 `audio.js`에 연결
 - [ ] Piano 코드 모드 보이스 leak 수정 (이전 프리뷰 명시적 해제)
 
 ---
@@ -126,7 +126,7 @@
 #### 2-C. 데이터 보강
 
 - [ ] **Blues songs.json**: 유명 블루스 10곡 이상 추가 (Stormy Monday, Sweet Home Chicago, Red House 등)
-- [ ] **Jazz 전이 데이터**: tritone substitution (bII7 → I), borrowed chords (bVII, bIII) 추가
+- [x] **Jazz 전이 데이터**: 7화음(Imaj7/ii7/V7 등) + 삼전음 대리(bII7), 부속 도미넌트(VI7/II7) 추가
 - [ ] **단조 전이 데이터**: rock/pop 단조 transitions 분리
 
 ---
@@ -195,9 +195,9 @@
 
 | 시기 | 우선순위 | 내용 |
 |------|----------|------|
-| 즉시 (이번 주) | P0 | B1~B6 버그 수정, M1 PlaybackQueue 추가 |
+| ~~즉시 (이번 주)~~ | ~~P0~~ | ~~B1~B6 버그 수정, M1 PlaybackQueue 추가~~ → **✅ B1/B5/M1 완료, B2/B3/B4/B6 잔여** |
 | 단기 (2~4주) | P1 | 저장·편집·폴더 (Phase 1) |
-| 단기 (2~4주) | P2 | 추천 로직 모듈화 + 데이터 보강 (Phase 2) |
+| 단기 (2~4주) | P2 | 추천 로직 모듈화 + 잔여 데이터 보강 (Blues곡, 단조 transitions) |
 | 중기 (1~2개월) | P3 | UI 개선 (Phase 3) |
 | 장기 (2~3개월) | P4 | URL 공유·내보내기 (Phase 4) |
 | 장기 (2~3개월) | P5 | TypeScript 마이그레이션 (Phase 5) |
@@ -219,14 +219,16 @@
   "roman":    ["I7","I7","I7","I7","IV7","IV7","I7","I7","V7","IV7","I7","V7"] }
 ```
 
-### Jazz 대리화음 전이 데이터 추가 예시
+### Jazz 전이 데이터 (✅ 구현 완료)
 
-```json
-"jazz": {
-  "I":    { "vi": 0.30, "ii": 0.28, "IV": 0.22, "V": 0.20 },
-  "bII7": { "I": 0.80, "vi": 0.20 },
-  "bVII": { "I": 0.50, "IV": 0.30, "V": 0.20 }
-}
+7화음 표기로 전면 교체 + 재즈 고유 어법 노드 추가됨:
+
+```js
+// src/data.js — transitions.jazz
+"Imaj7":  { "vi7": 0.25, "ii7": 0.25, "IVmaj7": 0.20, "V7": 0.15, "VI7": 0.10, "bII7": 0.05 },
+"ii7":    { "V7": 0.55, "bII7": 0.20, "IVmaj7": 0.12, "Imaj7": 0.08, "vi7": 0.05 },
+"bII7":   { "Imaj7": 0.80, "vi7": 0.20 },           // 삼전음 대리코드
+"VI7":    { "ii7": 0.70, "V7": 0.20, "IVmaj7": 0.10 } // 부속 도미넌트
 ```
 
 ---

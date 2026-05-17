@@ -74,8 +74,8 @@
 
 | 분류 | 기술 |
 |---|---|
-| 프레임워크 | React 19, Vite |
-| 오디오 | Tone.js (PolySynth + Reverb) |
+| 프레임워크 | React 18, Vite 5 |
+| 오디오 | Tone.js (Sampler + Reverb, 로드 실패 시 PolySynth 폴백) |
 | 상태 관리 | useState / useMemo / useRef |
 | 자료구조 | Graph, Stack, Queue, Array (직접 구현) |
 | 데이터 | Hooktheory 통계 기반 수동 수집 JSON |
@@ -131,7 +131,7 @@
     "title": "Let It Be",
     "key": "C",
     "mode": "major",
-    "absolute": ["C", "G", "Am", "F"],
+    "absolute": ["C", "G", "A", "F"],
     "roman":    ["I", "V", "vi", "IV"]
   }
 ]

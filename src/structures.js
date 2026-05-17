@@ -15,23 +15,28 @@ export class ChordGraph {
     this.adj.get(from).set(to, w);
   }
 
-  getRecommendations(from, diatonic, topN = 4) {
+  getRecommendations(from, diatonic, topN = 4, genre = null) {
     const m = this.adj.get(from);
     if (!m) return [];
     let arr = [...m.entries()].map(([r, w]) => ({ romanNumeral: r, weight: w }));
     if (diatonic && diatonic.length) {
       const allowed = new Set(diatonic);
-      arr = arr.filter(x => allowed.has(x.romanNumeral) || x.romanNumeral === "bVII");
+      const JAZZ_EXTRAS = new Set(["bII7", "VI7", "II7"]);
+      arr = arr.filter(x =>
+        allowed.has(x.romanNumeral) ||
+        (genre === "rock" && x.romanNumeral === "bVII") ||
+        (genre === "jazz" && JAZZ_EXTRAS.has(x.romanNumeral))
+      );
     }
     arr.sort((a, b) => b.weight - a.weight);
     return arr.slice(0, topN);
   }
 
-  randomWalk(start, steps, diatonic) {
+  randomWalk(start, steps, diatonic, genre = null) {
     const out = [start];
     let cur = start;
     for (let i = 0; i < steps; i++) {
-      const recs = this.getRecommendations(cur, diatonic, 8);
+      const recs = this.getRecommendations(cur, diatonic, 8, genre);
       if (!recs.length) break;
       const total = recs.reduce((s, r) => s + r.weight, 0);
       let pick = Math.random() * total;
@@ -87,4 +92,15 @@ export class ProgressionStack {
 
   canUndo() { return this.past.length > 0; }
   canRedo() { return this.future.length > 0; }
+}
+
+export class PlaybackQueue {
+  constructor() { this.items = []; }
+
+  enqueueAll(items) { this.items.push(...items); }
+  dequeue() { return this.items.shift(); }
+  isEmpty() { return this.items.length === 0; }
+  peek() { return this.items[0] ?? null; }
+  size() { return this.items.length; }
+  clear() { this.items = []; }
 }

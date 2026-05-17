@@ -23,7 +23,11 @@ function parseRoman(roman) {
   const isFlat = s.startsWith("b");
   if (isFlat) s = s.slice(1);
 
-  const isSeventh = s.endsWith("7");
+  // "maj7" 먼저 체크 — "7" 검사보다 앞서야 충돌 없음 (Imaj7 → isMaj7=true, isSeventh=false)
+  const isMaj7 = s.endsWith("maj7");
+  if (isMaj7) s = s.slice(0, -4);
+
+  const isSeventh = !isMaj7 && s.endsWith("7");
   if (isSeventh) s = s.slice(0, -1);
 
   const isDim = s.endsWith("º") || s.endsWith("°") || s.endsWith("o");
@@ -32,7 +36,8 @@ function parseRoman(roman) {
   const lower = s === s.toLowerCase();
   const map = { i:0, ii:1, iii:2, iv:3, v:4, vi:5, vii:6 };
   const degree = map[s.toLowerCase()];
-  return { degree, quality: isDim ? "dim" : (lower ? "min" : "maj"), isSeventh, isFlat };
+  return { degree, quality: isDim ? "dim" : (lower ? "min" : "maj"),
+           isSeventh: isSeventh || isMaj7, isMaj7, isFlat };
 }
 
 function scale(key, mode) {
@@ -41,17 +46,18 @@ function scale(key, mode) {
   return intervals.map(i => noteFromPc(root + i));
 }
 
-function chordIntervals(quality, isSeventh) {
+function chordIntervals(quality, isSeventh, isMaj7 = false) {
+  if (quality === "maj" && isMaj7) return [0, 4, 7, 11]; // major 7th (Cmaj7)
   switch (quality) {
-    case "maj":  return isSeventh ? [0, 4, 7, 10] : [0, 4, 7];
-    case "min":  return isSeventh ? [0, 3, 7, 10] : [0, 3, 7];
+    case "maj":  return isSeventh ? [0, 4, 7, 10] : [0, 4, 7]; // dominant 7th (G7) or triad
+    case "min":  return isSeventh ? [0, 3, 7, 10] : [0, 3, 7]; // minor 7th (Dm7) or triad
     case "dim":  return [0, 3, 6];
     default:     return [0, 4, 7];
   }
 }
 
 function romanToChord(roman, key, mode, octave = 4) {
-  const { degree, quality, isSeventh, isFlat } = parseRoman(roman);
+  const { degree, quality, isSeventh, isMaj7, isFlat } = parseRoman(roman);
   if (degree == null) return null;
 
   const sc = scale(key, mode);
@@ -62,17 +68,19 @@ function romanToChord(roman, key, mode, octave = 4) {
     rootName = noteFromPc(rootPc);
   }
 
-  const intervals = chordIntervals(quality, isSeventh);
+  const intervals = chordIntervals(quality, isSeventh, isMaj7);
   const baseMidi = midi(rootName, octave);
   const notes = intervals.map(iv => midiToNoteName(baseMidi + iv));
 
   const qLabel = quality === "min" ? "m"
                : quality === "dim" ? "dim"
                : "";
-  const seventhLabel = isSeventh ? "7" : "";
+  const seventhLabel = isMaj7 ? "maj7" : (isSeventh ? "7" : "");
   const name = rootName + qLabel + seventhLabel;
 
-  const qFinal = isSeventh ? (quality === "min" ? "min7" : "dom7") : quality;
+  const qFinal = isMaj7 ? "maj7"
+               : isSeventh ? (quality === "min" ? "min7" : "dom7")
+               : quality;
 
   return {
     romanNumeral: roman,
@@ -114,11 +122,15 @@ function buildChordFromNote(noteName, octave, key, mode, genre) {
 
 function getDiatonicRomans(genre, mode) {
   if (genre === "blues") return ["I7","IV7","V7"];
+  if (genre === "jazz") {
+    if (mode === "minor") return ["im7","iiº","IIImaj7","iv7","V7","VImaj7","VII7"];
+    return ["Imaj7","ii7","iii7","IVmaj7","V7","vi7","viiº"];
+  }
   if (mode === "minor") return ["i","iiº","III","iv","v","VI","VII"];
   return ["I","ii","iii","IV","V","vi","viiº"];
 }
 
-function detectChord(noteNames, key, mode) {
+function detectChord(noteNames, key, mode, genre = "pop") {
   if (noteNames.length < 3) return null;
   const pcs = [...new Set(noteNames.map(n => {
     const m = n.match(/^([A-G]#?)/);
@@ -153,7 +165,7 @@ function detectChord(noteNames, key, mode) {
         });
         let roman = "?";
         if (key) {
-          const diatonic = getDiatonicRomans("pop", mode);
+          const diatonic = getDiatonicRomans(genre, mode);
           for (const r of diatonic) {
             const ch = romanToChord(r, key, mode);
             if (ch && ch.rootNote === rootName) {
@@ -243,18 +255,20 @@ function impliedTonicFromProgression(progression) {
 function getAbsolutePatternRecs(progression, songs) {
   if (!progression.length || !songs || !songs.length) return [];
 
-  const progNames = progression.map(c => c.rootNote);
+  // pitch class로 비교해 flat(Bb)/sharp(A#) 표기 불일치 해소
+  const progPcs = progression.map(c => pc(c.rootNote));
   const nextIdx = progression.length;
 
-  // 현재 진행과 같은 prefix를 가진 곡들 필터
   const matched = songs.filter(song => {
     if (song.absolute.length <= nextIdx) return false;
-    return progNames.every((name, i) => song.absolute[i] === name);
+    return progPcs.every((p, i) => {
+      const sp = pc(song.absolute[i]);
+      return sp >= 0 && sp === p;
+    });
   });
 
   if (!matched.length) return [];
 
-  // 다음 코드 카운트
   const counts = {};
   for (const song of matched) {
     const next = song.absolute[nextIdx];
@@ -263,7 +277,12 @@ function getAbsolutePatternRecs(progression, songs) {
 
   const total = Object.values(counts).reduce((s, v) => s + v, 0);
   return Object.entries(counts)
-    .map(([name, count]) => ({ name, rootNote: name, quality: "maj", weight: count / total }))
+    .map(([name, count]) => {
+      // flat 표기를 sharp으로 정규화
+      const rootPc = pc(name);
+      const rootNote = rootPc >= 0 ? noteFromPc(rootPc) : name;
+      return { name: rootNote, rootNote, quality: "maj", weight: count / total };
+    })
     .sort((a, b) => b.weight - a.weight)
     .slice(0, 4);
 }

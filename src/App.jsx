@@ -17,7 +17,6 @@ function App() {
   const [pendingChord, setPendingChord] = useState(null);
   const [playingIdx, setPlayingIdx] = useState(-1);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [confirmedFromInferred, setConfirmedFromInferred] = useState(false);
 
   const graphRef = useRef(null);
   const stackRef = useRef(null);
@@ -69,7 +68,7 @@ function App() {
         const ch = MUSIC.romanToChord(r, dispKey, dispMode);
         return {
           romanNumeral: r,
-          name: hasKey && ch ? ch.name : r,
+          name: ch ? ch.name : r,
           quality: ch ? ch.quality : "maj",
           weight: i === 0 ? 0.6 : 0.4,
           source: "genre",
@@ -136,7 +135,7 @@ function App() {
 
     if (genre === "blues" && !lastRoman.endsWith("7")) lastRoman = lastRoman + "7";
 
-    const baseRecs = graph.getRecommendations(lastRoman, diatonic, 4);
+    const baseRecs = graph.getRecommendations(lastRoman, diatonic, 4, genre);
 
     return baseRecs.map(r => {
       const ch = MUSIC.romanToChord(r.romanNumeral, usedKey, usedMode);
@@ -159,12 +158,29 @@ function App() {
   const handleStart = (sess) => {
     setSession(sess);
     setShowSetup(false);
-    setConfirmedFromInferred(false);
   };
 
   const handleSetupOpen = () => setShowSetup(true);
 
+  const retroactivelyUpdateRomans = (chords, key, mode) => {
+    return chords.map(ch => {
+      if (!key) return ch;
+      const roman = MUSIC.getRelativeRoman(ch, key, mode);
+      return roman && roman !== "?" ? { ...ch, romanNumeral: roman } : ch;
+    });
+  };
+
   const handleUpdateSession = (sess) => {
+    if (isPlaying) {
+      AUDIO.stopPlayback();
+      setIsPlaying(false);
+      setPlayingIdx(-1);
+    }
+    if (sess.key && progression.length > 0) {
+      const updated = retroactivelyUpdateRomans(progression, sess.key, sess.mode);
+      stackRef.current.set(updated);
+      setProgression(updated);
+    }
     setSession(sess);
     setShowSetup(false);
   };
@@ -180,7 +196,12 @@ function App() {
     }
     if (!ch) return;
 
-    if (pendingChord && pendingChord.romanNumeral === ch.romanNumeral) {
+    const isSamePending = pendingChord && (
+      ch.romanNumeral !== "?"
+        ? pendingChord.romanNumeral === ch.romanNumeral
+        : pendingChord.rootNote === ch.rootNote && pendingChord.name === ch.name
+    );
+    if (isSamePending) {
       pushChord(ch);
       setPendingChord(null);
       return;
@@ -215,7 +236,7 @@ function App() {
 
   const handlePlayStop = async () => {
     if (isPlaying) {
-      window.__STOP_PLAYBACK = true;
+      AUDIO.stopPlayback();
       setIsPlaying(false);
       setPlayingIdx(-1);
       return;
@@ -234,7 +255,7 @@ function App() {
     const diatonic = MUSIC.getDiatonicRomans(session.genre, session.mode);
     const starts = CHORD_DATA.startingChords[session.genre];
     const start = starts[Math.floor(Math.random() * starts.length)];
-    const path = graph.randomWalk(start, 5, diatonic);
+    const path = graph.randomWalk(start, 5, diatonic, session.genre);
     const chords = path.map(r => MUSIC.romanToChord(r, session.key, session.mode)).filter(Boolean);
     stackRef.current.set(chords);
     setProgression(chords);
@@ -242,8 +263,13 @@ function App() {
 
   const handleConfirmInferredKey = () => {
     if (!inferredKey) return;
-    setSession({ ...session, key: inferredKey.key, mode: inferredKey.mode });
-    setConfirmedFromInferred(true);
+    const { key, mode } = inferredKey;
+    if (progression.length > 0) {
+      const updated = retroactivelyUpdateRomans(progression, key, mode);
+      stackRef.current.set(updated);
+      setProgression(updated);
+    }
+    setSession({ ...session, key, mode });
   };
 
   useEffect(() => {
@@ -261,7 +287,11 @@ function App() {
       if (!recs.length) return;
       e.preventDefault();
       const currIdx = pendingChord
-        ? recs.findIndex(r => r.romanNumeral === pendingChord.romanNumeral)
+        ? recs.findIndex(r =>
+            r.romanNumeral !== "?"
+              ? r.romanNumeral === pendingChord.romanNumeral
+              : r.chord?.rootNote === pendingChord.rootNote && r.chord?.name === pendingChord.name
+          )
         : -1;
       let nextIdx;
       if (currIdx < 0) {
