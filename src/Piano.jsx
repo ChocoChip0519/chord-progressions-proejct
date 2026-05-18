@@ -67,18 +67,12 @@ function Piano({
       const s = sessionRef.current;
       const ch = MUSIC.buildChordFromNote(note, octave, s.key, s.mode, s.genre);
       const pc = pendingChordRef.current;
-      if (pc && pc.rootNote === ch.rootNote && pc.name === ch.name) {
-        onAddChord(ch);
-        setPendingChord(null);
-        setPreviewKey(null);
-      } else {
-        if (pc) pc.notes.forEach(n => AUDIO.releaseNote(n));
-        setPendingChord(ch);
-        setPreviewKey({ note, octave });
-        ch.notes.forEach(n => AUDIO.attackNote(n));
-      }
+      if (pc) pc.notes.forEach(n => AUDIO.releaseNote(n));
+      setPendingChord(ch);
+      setPreviewKey({ note, octave });
+      ch.notes.forEach(n => AUDIO.attackNote(n));
     }
-  }, [onAddChord, setPendingChord]);
+  }, [setPendingChord]);
 
   const releaseKey = useCallback((note, octave) => {
     const fullNote = note + octave;
@@ -186,7 +180,7 @@ function Piano({
       <>
         <span className="name">{pendingChord.name}</span>
         {pendingChord.romanNumeral !== "?" && <span className="roman">{pendingChord.romanNumeral}</span>}
-        <span>— Space 또는 재클릭으로 추가</span>
+        <span>— Space로 추가</span>
       </>
     );
   } else if (pianoMode === "free") {

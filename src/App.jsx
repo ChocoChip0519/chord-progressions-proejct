@@ -8,10 +8,17 @@ import Timeline from './Timeline.jsx';
 import Recommendations from './Recommendations.jsx';
 import Piano from './Piano.jsx';
 import SetupModal from './SetupModal.jsx';
+import ProjectDashboard from './ProjectDashboard.jsx';
+import LandingPage from './LandingPage.jsx';
+import { useProjectStore } from './useProjectStore.js';
 
 function App() {
+  const [currentView, setCurrentView] = useState('landing');
+  const [activeProjectId, setActiveProjectId] = useState(null);
+  const [isDirty, setIsDirty] = useState(false);
+
   const [session, setSession] = useState(null);
-  const [showSetup, setShowSetup] = useState(true);
+  const [showSetup, setShowSetup] = useState(false);
   const [pianoMode, setPianoMode] = useState("chord");
   const [progression, setProgression] = useState([]);
   const [pendingChord, setPendingChord] = useState(null);
@@ -25,6 +32,8 @@ function App() {
     graphRef.current = new ChordGraph();
     stackRef.current = new ProgressionStack();
   }
+
+  const store = useProjectStore();
 
   useEffect(() => {
     if (!session) return;
@@ -79,15 +88,12 @@ function App() {
     }
 
     const last = progression[progression.length - 1];
-
     const keyConfirmed = hasKey || (inferredKey && inferredKey.confidence >= 0.7);
 
-    // 키 미확정 → 절대음명 패턴 매칭
     if (!keyConfirmed) {
       const songs = CHORD_DATA.songs[genre] || [];
       const patternRecs = MUSIC.getAbsolutePatternRecs(progression, songs);
 
-      // 패턴 매칭 결과 있으면 사용, 없으면 장르 전이 가중치 폴백
       if (patternRecs.length) {
         return patternRecs.map(r => ({
           romanNumeral: "?",
@@ -98,7 +104,6 @@ function App() {
           chord: MUSIC.romanToChord("I", r.rootNote, "major"),
         }));
       }
-      // 폴백: 첫 코드 근음 기준으로 장르 전이 가중치
       const implied = MUSIC.impliedTonicFromProgression(progression);
       const usedKey2 = implied ? implied.key : "C";
       const usedMode2 = implied ? implied.mode : "major";
@@ -122,7 +127,6 @@ function App() {
       });
     }
 
-    // 키 확정 → 도수 기반 전이 가중치
     const usedKey = hasKey ? session.key : inferredKey.key;
     const usedMode = hasKey ? session.mode : inferredKey.mode;
     const diatonic = MUSIC.getDiatonicRomans(genre, usedMode);
@@ -150,17 +154,35 @@ function App() {
     });
   }, [progression, session, inferredKey]);
 
+  // isDirty 추적 — workspace 진입 후 progression/session 변경 시
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (currentView !== 'workspace' || isFirstRender.current) return;
+    setIsDirty(true);
+  }, [progression]);
+
+  useEffect(() => {
+    if (currentView !== 'workspace' || isFirstRender.current) return;
+    setIsDirty(true);
+  }, [session]);
+
+  // Ctrl+S 저장
+  useEffect(() => {
+    if (currentView !== 'workspace') return;
+    const onKey = (e) => {
+      if (e.ctrlKey && e.key === 's') {
+        e.preventDefault();
+        handleSave();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [currentView, activeProjectId, progression, session]);
+
   const pushChord = (ch) => {
     stackRef.current.push(ch);
     setProgression(stackRef.current.getAll());
   };
-
-  const handleStart = (sess) => {
-    setSession(sess);
-    setShowSetup(false);
-  };
-
-  const handleSetupOpen = () => setShowSetup(true);
 
   const retroactivelyUpdateRomans = (chords, key, mode) => {
     return chords.map(ch => {
@@ -169,6 +191,23 @@ function App() {
       return roman && roman !== "?" ? { ...ch, romanNumeral: roman } : ch;
     });
   };
+
+  // 새 프로젝트: SetupModal Begin → 이 함수
+  const handleStart = (sess) => {
+    const project = store.createProject(sess);
+    setActiveProjectId(project.id);
+    setSession(sess);
+    stackRef.current.clear();
+    setProgression([]);
+    setPendingChord(null);
+    setShowSetup(false);
+    isFirstRender.current = true;
+    setIsDirty(false);
+    // 마운트 후 다음 렌더부터 dirty 추적
+    setTimeout(() => { isFirstRender.current = false; }, 0);
+  };
+
+  const handleSetupOpen = () => setShowSetup(true);
 
   const handleUpdateSession = (sess) => {
     if (isPlaying) {
@@ -183,6 +222,54 @@ function App() {
     }
     setSession(sess);
     setShowSetup(false);
+  };
+
+  // 저장
+  const handleSave = () => {
+    if (!activeProjectId) return;
+    store.saveProject(activeProjectId, { progression, session });
+    setIsDirty(false);
+  };
+
+  // 대시보드 → 작업창 열기
+  const handleOpenProject = (id) => {
+    const proj = store.getProject(id);
+    if (!proj) return;
+    AUDIO.ensureStarted();
+    setSession(proj.session);
+    stackRef.current.set(proj.progression);
+    setProgression(proj.progression);
+    setActiveProjectId(id);
+    setPendingChord(null);
+    setShowSetup(false);
+    isFirstRender.current = true;
+    setIsDirty(false);
+    setTimeout(() => { isFirstRender.current = false; }, 0);
+    setCurrentView('workspace');
+  };
+
+  // 대시보드 → 새 프로젝트 버튼
+  const handleNewProject = () => {
+    setSession(null);
+    setActiveProjectId(null);
+    stackRef.current.clear();
+    setProgression([]);
+    setPendingChord(null);
+    setShowSetup(true);
+    setCurrentView('workspace');
+  };
+
+  // 작업창 → 대시보드로 돌아가기
+  const handleBackToDashboard = () => {
+    if (isDirty) {
+      if (!window.confirm('저장하지 않은 변경사항이 있습니다. 대시보드로 이동하시겠습니까?')) return;
+    }
+    if (isPlaying) {
+      AUDIO.stopPlayback();
+      setIsPlaying(false);
+      setPlayingIdx(-1);
+    }
+    setCurrentView('dashboard');
   };
 
   const handlePick = (rec) => {
@@ -210,9 +297,7 @@ function App() {
     setPendingChord(ch);
   };
 
-  const handleAddChord = (ch) => {
-    pushChord(ch);
-  };
+  const handleAddChord = (ch) => { pushChord(ch); };
 
   const handleUndo = () => {
     stackRef.current.undo();
@@ -272,8 +357,9 @@ function App() {
     setSession({ ...session, key, mode });
   };
 
+  // 키보드 단축키 (추천 카드 탐색)
   useEffect(() => {
-    if (showSetup || !session) return;
+    if (currentView !== 'workspace' || showSetup || !session) return;
     const onKey = (e) => {
       const el = document.activeElement;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
@@ -307,31 +393,73 @@ function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [recs, pendingChord, showSetup, session]);
+  }, [recs, pendingChord, showSetup, session, currentView]);
+
+  // ── 화면 분기 ──
+
+  if (currentView === 'landing') {
+    return (
+      <LandingPage onEnter={() => setCurrentView('dashboard')} />
+    );
+  }
+
+  if (currentView === 'dashboard') {
+    return (
+      <ProjectDashboard
+        projects={store.projects}
+        folders={store.folders}
+        onOpenProject={handleOpenProject}
+        onNewProject={handleNewProject}
+        onDeleteProject={store.deleteProject}
+        onRenameProject={store.renameProject}
+        onMoveProject={store.moveProject}
+        onCreateFolder={store.createFolder}
+        onDeleteFolder={store.deleteFolder}
+        onRenameFolder={store.renameFolder}
+      />
+    );
+  }
+
+  // workspace
+  const activeProject = activeProjectId ? store.getProject(activeProjectId) : null;
 
   if (!session || showSetup) {
     return (
       <>
         {session && (
           <div className="app">
-            <Header session={session} onOpenSetup={() => {}} />
+            <Header
+              session={session}
+              onOpenSetup={() => {}}
+              onBackToDashboard={handleBackToDashboard}
+              projectName={activeProject?.name}
+            />
             <Timeline progression={progression} currentIdx={progression.length - 1}
               playingIdx={-1} isPlaying={false}
               canUndo={false} canRedo={false} hasKey={!!session.key}
               onUndo={() => {}} onRedo={() => {}} onPlayStop={() => {}}
               onAutoGen={() => {}} onClear={() => {}} onRemove={() => {}}
+              onSave={handleSave} isDirty={isDirty}
             />
           </div>
         )}
-        <SetupModal initial={session} onStart={session ? handleUpdateSession : handleStart}
-          onCancel={session ? () => setShowSetup(false) : null} />
+        <SetupModal
+          initial={session}
+          onStart={session ? handleUpdateSession : handleStart}
+          onCancel={session ? () => setShowSetup(false) : (activeProjectId ? null : handleBackToDashboard)}
+        />
       </>
     );
   }
 
   return (
     <div className="app">
-      <Header session={session} onOpenSetup={handleSetupOpen} />
+      <Header
+        session={session}
+        onOpenSetup={handleSetupOpen}
+        onBackToDashboard={handleBackToDashboard}
+        projectName={activeProject?.name}
+      />
       <Timeline
         progression={progression}
         currentIdx={progression.length - 1}
@@ -346,6 +474,8 @@ function App() {
         onAutoGen={handleAutoGen}
         onClear={handleClear}
         onRemove={handleRemove}
+        onSave={handleSave}
+        isDirty={isDirty}
       />
       <Recommendations
         recs={recs}

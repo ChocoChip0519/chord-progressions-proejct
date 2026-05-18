@@ -2,12 +2,17 @@ import React from 'react';
 import Icon from './icons.jsx';
 import { CHORD_DATA } from './data.js';
 
-function Header({ session, onOpenSetup }) {
+function Header({ session, onOpenSetup, onBackToDashboard, projectName }) {
   const genre = CHORD_DATA.genres.find(g => g.id === session.genre);
   return (
     <header className="header">
       <div className="logo">
-        <span>Chord Progression Recommender</span>
+        {onBackToDashboard && (
+          <button className="icon-btn text" onClick={onBackToDashboard} style={{ marginRight: 8 }}>
+            ← 대시보드
+          </button>
+        )}
+        <span>{projectName || 'ChordFlow'}</span>
       </div>
       <div className="session-bar">
         <span className="session-badge" onClick={onOpenSetup}

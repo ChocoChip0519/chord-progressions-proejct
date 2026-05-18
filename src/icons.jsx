@@ -18,6 +18,7 @@ const Icon = ({ name, size = 16, color = "currentColor", strokeWidth = 2 }) => {
     note: <><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></>,
     keyboard: <><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h12"/></>,
     check: <polyline points="20 6 9 17 4 12"/>,
+    save: <><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></>,
   };
   const fill = (name === "play" || name === "stop" || name === "star") ? color : "none";
   const stroke = fill === "none" ? color : "none";

@@ -4,7 +4,8 @@ import Icon from './icons.jsx';
 function Timeline({
   progression, currentIdx, playingIdx, isPlaying,
   canUndo, canRedo, hasKey,
-  onUndo, onRedo, onPlayStop, onAutoGen, onClear, onRemove
+  onUndo, onRedo, onPlayStop, onAutoGen, onClear, onRemove,
+  onSave, isDirty,
 }) {
   return (
     <section className="timeline-section">
@@ -31,6 +32,13 @@ function Timeline({
           <div className="toolbar-divider" />
           <button className="icon-btn" onClick={onClear} disabled={!progression.length} title="모두 지우기">
             <Icon name="trash" size={15} />
+          </button>
+          <div className="toolbar-divider" />
+          <button className="icon-btn text" onClick={onSave}
+            title="저장 (Ctrl+S)"
+            style={isDirty ? { color: "var(--accent)" } : { color: "var(--text-3)" }}>
+            <Icon name="save" size={14} />
+            {isDirty ? '저장•' : '저장됨'}
           </button>
         </div>
       </div>
