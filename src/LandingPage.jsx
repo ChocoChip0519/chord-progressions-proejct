@@ -1,4 +1,27 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+
+const steps = [
+  {
+    num: 1,
+    title: '장르와 키를 설정하세요',
+    desc: 'Pop, Jazz, Rock, Blues 중 장르를 고르고 키와 BPM을 설정합니다. 키를 모르면 비워둬도 자동으로 추론해 드려요.',
+  },
+  {
+    num: 2,
+    title: '피아노로 코드를 눌러보세요',
+    desc: '가상 피아노에서 음을 직접 누르거나, 코드 모드에서 루트음만 눌러도 코드가 완성됩니다. Space로 진행에 추가하세요.',
+  },
+  {
+    num: 3,
+    title: '다음 코드를 추천받으세요',
+    desc: '입력한 진행을 분석해 어울리는 코드 4개를 자동 추천합니다. 추천 카드를 클릭하면 바로 미리 들어볼 수 있어요.',
+  },
+  {
+    num: 4,
+    title: '완성된 진행을 저장하세요',
+    desc: 'Ctrl+S 또는 저장 버튼으로 프로젝트에 저장합니다. 대시보드에서 언제든 불러올 수 있어요.',
+  },
+];
 
 const features = [
   {
@@ -19,26 +42,54 @@ const features = [
 ];
 
 function LandingPage({ onEnter }) {
+  useEffect(() => {
+    const els = document.querySelectorAll('.landing-step');
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.25 }
+    );
+    els.forEach(el => observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div className="landing">
       <div className="landing-inner">
         <header className="landing-header">
           <span className="landing-wordmark">ChordFlow</span>
-          <button className="landing-header-btn" onClick={onEnter}>시작하기 →</button>
         </header>
 
         <section className="landing-hero">
-          <div className="landing-eyebrow">chord progression tool</div>
-          <h1 className="landing-title">
-            코드 진행을<br />더 쉽게.
-          </h1>
-          <p className="landing-subtitle">
-            장르와 키를 고르고, 피아노를 치면<br />
-            다음 코드를 바로 추천해드립니다.
-          </p>
-          <button className="landing-cta" onClick={onEnter}>
-            무료로 시작하기
-          </button>
+          <div className="landing-hero-text">
+            <div className="landing-eyebrow">chord progression tool</div>
+            <h1 className="landing-title">
+              코드 진행을<br />더 쉽게.
+            </h1>
+            <p className="landing-subtitle">
+              장르와 키를 고르고, 피아노를 치면<br />
+              다음 코드를 바로 추천해드립니다.
+            </p>
+            <button className="landing-cta" onClick={onEnter}>
+              시작하기
+            </button>
+          </div>
+          <div className="landing-hero-visual">
+            <video
+              className="landing-demo-video"
+              src="/demo.mov"
+              autoPlay
+              loop
+              muted
+              playsInline
+            />
+          </div>
         </section>
 
         <section className="landing-features">
@@ -49,6 +100,25 @@ function LandingPage({ onEnter }) {
               <div className="landing-feat-desc">{f.desc}</div>
             </div>
           ))}
+        </section>
+
+        <section className="landing-tutorial">
+          <p className="landing-tutorial-label">how it works</p>
+          <h2 className="landing-tutorial-title">이렇게 사용해요</h2>
+          <div className="landing-steps">
+            {steps.map((s, i) => (
+              <div className="landing-step" key={s.num} style={{ transitionDelay: `${i * 0.13}s` }}>
+                <div className="landing-step-left">
+                  <div className="landing-step-num">{s.num}</div>
+                  {i < steps.length - 1 && <div className="landing-step-line" />}
+                </div>
+                <div className="landing-step-body">
+                  <div className="landing-step-title">{s.title}</div>
+                  <div className="landing-step-desc">{s.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
         </section>
       </div>
     </div>

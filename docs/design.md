@@ -145,6 +145,15 @@ workspace   → 기존 4분할 레이아웃
         .landing-feat-icon
         .landing-feat-title
         .landing-feat-desc
+    .landing-tutorial    — "이렇게 사용해요" 4단계 튜토리얼 섹션
+      .landing-tutorial-label — "how it works" 뱃지 (eyebrow와 동일 스타일)
+      .landing-tutorial-title — 28px, weight 800
+      .landing-steps     — 2×2 그리드 (gap 12px)
+        .landing-step    — flex row, var(--panel) bg, border-radius 14px
+          .landing-step-num   — 32×32px 원형 뱃지, var(--accent) 배경, 흰 숫자
+          .landing-step-body
+            .landing-step-title — 14px, weight 700
+            .landing-step-desc  — 13px, var(--text-2)
 ```
 
 ---

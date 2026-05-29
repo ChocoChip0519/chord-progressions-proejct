@@ -10,7 +10,7 @@
 src/
 ├── App.jsx              — 전체 상태 관리, 추천 로직 (useMemo), 이벤트 핸들러, 화면 분기
 ├── useProjectStore.js   — localStorage CRUD 훅 (projects/folders)
-├── LandingPage.jsx      — 랜딩 화면 (앱 소개 + 시작하기 버튼)
+├── LandingPage.jsx      — 랜딩 화면 (히어로 + features 3카드 + 4단계 튜토리얼)
 ├── ProjectDashboard.jsx — 프로젝트 목록 화면 (좌측 사이드바 필터 + 우측 카드 그리드/리스트)
 ├── ProjectCard.jsx      — 프로젝트 카드 (컬러바 + 코드 미리보기 + 이름/폴더이동/삭제)
 ├── data.js              — CHORD_DATA: transitions/moods/genres/keys 인라인 + songs.json import

@@ -773,8 +773,8 @@ body {
 /* ============ LANDING ============ */
 .landing {
   min-height: 100vh;
-  background: #f0f0f2;
-  color: var(--text);
+  background: var(--dash-bg);
+  color: var(--dash-text);
   display: flex;
   flex-direction: column;
 }
@@ -800,7 +800,7 @@ body {
   font-size: 17px;
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: var(--text);
+  color: var(--dash-text);
 }
 
 .landing-header-btn {
@@ -820,9 +820,30 @@ body {
 .landing-hero {
   flex: 1;
   display: flex;
-  flex-direction: column;
-  justify-content: center;
+  flex-direction: row;
+  align-items: center;
+  gap: 52px;
   padding: 72px 0 48px;
+}
+
+.landing-hero-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.landing-hero-visual {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.landing-demo-video {
+  width: 100%;
+  border-radius: 16px;
+  box-shadow: var(--dash-card-hover);
+  display: block;
 }
 
 .landing-eyebrow {
@@ -844,14 +865,14 @@ body {
   font-weight: 800;
   line-height: 1.1;
   letter-spacing: -0.04em;
-  color: var(--text);
+  color: var(--dash-text);
   margin: 0 0 24px;
 }
 
 .landing-subtitle {
   font-size: 17px;
   line-height: 1.7;
-  color: var(--text-2);
+  color: var(--dash-text-2);
   margin: 0 0 40px;
   max-width: 420px;
 }
@@ -884,14 +905,14 @@ body {
 }
 
 .landing-feat-card {
-  background: var(--panel);
-  border: 1px solid var(--border);
+  background: var(--dash-card);
+  border: 1px solid var(--dash-border);
   border-radius: 14px;
   padding: 22px;
   transition: border-color 0.2s, transform 0.15s, box-shadow 0.15s;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--dash-card-shadow);
 }
-.landing-feat-card:hover { border-color: var(--accent-40); transform: translateY(-3px); box-shadow: var(--shadow-md); }
+.landing-feat-card:hover { border-color: var(--accent-40); transform: translateY(-3px); box-shadow: var(--dash-card-hover); }
 
 .landing-feat-icon {
   font-size: 26px;
@@ -901,7 +922,7 @@ body {
 .landing-feat-title {
   font-size: 14px;
   font-weight: 700;
-  color: var(--text);
+  color: var(--dash-text);
   margin-bottom: 8px;
   letter-spacing: -0.01em;
 }
@@ -909,7 +930,102 @@ body {
 .landing-feat-desc {
   font-size: 13px;
   line-height: 1.6;
-  color: var(--text-2);
+  color: var(--dash-text-2);
+}
+
+/* ── Landing Tutorial ── */
+.landing-tutorial {
+  padding: 0 0 96px;
+}
+
+.landing-tutorial-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: lowercase;
+  color: var(--accent);
+  background: var(--accent-10);
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  margin-bottom: 14px;
+}
+
+.landing-tutorial-title {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--dash-text);
+  margin: 0 0 32px;
+}
+
+.landing-steps {
+  display: flex;
+  flex-direction: column;
+  max-width: 560px;
+}
+
+.landing-step {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+.landing-step.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.landing-step-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.landing-step-num {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.landing-step-line {
+  width: 2px;
+  flex: 1;
+  min-height: 32px;
+  background: var(--dash-border);
+  margin: 6px 0;
+}
+
+.landing-step-body {
+  flex: 1;
+  padding-bottom: 36px;
+}
+
+.landing-step-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--dash-text);
+  margin-bottom: 8px;
+  letter-spacing: -0.02em;
+  line-height: 36px;
+}
+
+.landing-step-desc {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--dash-text-2);
 }
 
 /* ============ DASHBOARD — GoodNotes Style ============ */
