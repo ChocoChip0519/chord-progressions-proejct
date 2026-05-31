@@ -914,6 +914,70 @@ body {
 }
 .landing-feat-card:hover { border-color: var(--accent-40); transform: translateY(-3px); box-shadow: var(--dash-card-hover); }
 
+/* ── Tooltip (data-tooltip) ── */
+[data-tooltip] { position: relative; }
+
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  white-space: nowrap;
+  background: var(--dash-text);
+  color: var(--dash-card);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 10px;
+  border-radius: 6px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  z-index: 10;
+}
+
+[data-tooltip]::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  border: 5px solid transparent;
+  border-top-color: var(--dash-text);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  z-index: 10;
+}
+
+[data-tooltip]:hover::after,
+[data-tooltip]:hover::before {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* CTA 버튼은 툴팁을 위쪽에, 왼쪽 정렬 기준으로 보정 */
+.landing-cta[data-tooltip]::after { left: 0; transform: translateX(0) translateY(4px); }
+.landing-cta[data-tooltip]::before { left: 28px; transform: translateX(-50%) translateY(4px); }
+.landing-cta[data-tooltip]:hover::after { transform: translateX(0) translateY(0); }
+.landing-cta[data-tooltip]:hover::before { transform: translateX(-50%) translateY(0); }
+
+/* 헤더 session-badge — 툴팁을 아래 방향으로 */
+.session-badge[data-tooltip]::after {
+  bottom: auto;
+  top: calc(100% + 10px);
+  transform: translateX(-50%) translateY(-4px);
+}
+.session-badge[data-tooltip]::before {
+  bottom: auto;
+  top: calc(100% + 4px);
+  border-top-color: transparent;
+  border-bottom-color: var(--dash-text);
+  transform: translateX(-50%) translateY(-4px);
+}
+.session-badge[data-tooltip]:hover::after  { transform: translateX(-50%) translateY(0); }
+.session-badge[data-tooltip]:hover::before { transform: translateX(-50%) translateY(0); }
+
 .landing-feat-icon {
   font-size: 26px;
   margin-bottom: 12px;

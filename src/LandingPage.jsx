@@ -28,16 +28,19 @@ const features = [
     icon: '🎹',
     title: '가상 피아노',
     desc: '건반을 직접 눌러 코드를 입력하거나, 추천 카드로 빠르게 선택하세요.',
+    tooltip: '키보드 단축키로도 연주할 수 있어요',
   },
   {
     icon: '🎵',
     title: '장르별 추천',
     desc: 'Pop, Jazz, Rock, Blues의 전이 확률 그래프로 다음 코드를 제안합니다.',
+    tooltip: '전이 확률 그래프 기반 · 4개 장르 지원',
   },
   {
     icon: '📁',
     title: '작업 저장',
     desc: '진행을 이름 붙여 저장하고, 폴더로 묶어 언제든 다시 열어보세요.',
+    tooltip: '폴더로 분류 · 브라우저에 자동 저장',
   },
 ];
 
@@ -94,7 +97,7 @@ function LandingPage({ onEnter }) {
 
         <section className="landing-features">
           {features.map(f => (
-            <div className="landing-feat-card" key={f.title}>
+            <div className="landing-feat-card" key={f.title} data-tooltip={f.tooltip}>
               <div className="landing-feat-icon">{f.icon}</div>
               <div className="landing-feat-title">{f.title}</div>
               <div className="landing-feat-desc">{f.desc}</div>
