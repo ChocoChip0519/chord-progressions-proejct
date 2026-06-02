@@ -131,16 +131,66 @@ body {
   justify-content: space-between;
   margin-bottom: 12px;
 }
+.section-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
 .section-title {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-2);
+  white-space: nowrap;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   white-space: nowrap;
 }
 .toolbar { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
 .toolbar-divider { width: 1px; height: 22px; background: var(--border); margin: 0 4px; flex-shrink: 0; }
+
+.song-match-badges {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+.song-match-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--accent-10);
+  border: 1px solid var(--accent-40);
+  border-radius: 6px;
+  padding: 2px 9px;
+  font-size: 12px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  animation: song-match-in 0.2s ease;
+}
+@keyframes song-match-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.song-match-pattern {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.song-match-sep { color: var(--text-3); flex-shrink: 0; }
+.song-match-titles {
+  color: var(--text-2);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
 .icon-btn.text {
   width: auto;
   padding: 0 12px;

@@ -67,6 +67,13 @@ export class ProgressionStack {
     this.future = [];
   }
 
+  // undo 히스토리 없이 배열을 통째로 교체 (프로젝트 로드 시 사용)
+  load(newArr) {
+    this.past = [];
+    this.current = [...newArr];
+    this.future = [];
+  }
+
   undo() {
     if (!this.past.length) return null;
     this.future.push([...this.current]);

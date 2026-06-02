@@ -5,12 +5,28 @@ function Timeline({
   progression, currentIdx, playingIdx, isPlaying,
   canUndo, canRedo, hasKey,
   onUndo, onRedo, onPlayStop, onAutoGen, onClear, onRemove,
-  onSave, isDirty,
+  onSave, isDirty, songMatches,
 }) {
   return (
     <section className="timeline-section">
       <div className="section-header">
-        <div className="section-title">코드 진행</div>
+        <div className="section-title-group">
+          <div className="section-title">코드 진행</div>
+          {songMatches?.length > 0 && (
+            <div className="song-match-badges">
+              {songMatches.map(m => (
+                <span key={m.pattern} className="song-match-badge">
+                  <span className="song-match-pattern mono">{m.pattern}</span>
+                  <span className="song-match-sep">·</span>
+                  <span className="song-match-titles">
+                    {m.songs.map(s => `${s.artist}:${s.title}`).join(', ')}
+                    {m.total > m.songs.length ? ` 외 ${m.total - m.songs.length}곡` : ''}
+                  </span>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
         <div className="toolbar">
           <button className="icon-btn" onClick={onUndo} disabled={!canUndo} title="실행 취소">
             <Icon name="undo" size={16} />

@@ -287,6 +287,25 @@ function getAbsolutePatternRecs(progression, songs) {
     .slice(0, 4);
 }
 
+// 사용자 progression의 끝 N개가 songs 중 어떤 곡과 완전 일치하는지 검사.
+// 같은 패턴을 가진 곡들은 묶어서 반환 { pattern, titles(최대2), total }.
+function findMatchingSongs(progression, songs) {
+  if (!progression.length || !songs?.length) return [];
+  const grouped = {};
+  for (const song of songs) {
+    const n = song.roman.length;
+    if (n > progression.length) continue;
+    const window = progression.slice(progression.length - n);
+    if (window.some(ch => !ch.romanNumeral || ch.romanNumeral === '?')) continue;
+    if (!window.every((ch, i) => ch.romanNumeral === song.roman[i])) continue;
+    const key = song.roman.join('–');
+    if (!grouped[key]) grouped[key] = { pattern: key, songs: [], total: 0 };
+    grouped[key].total++;
+    if (grouped[key].songs.length < 2) grouped[key].songs.push({ artist: song.artist, title: song.title });
+  }
+  return Object.values(grouped);
+}
+
 export const MUSIC = {
   NOTES,
   pc, noteFromPc, midi, midiToNoteName,
@@ -300,4 +319,5 @@ export const MUSIC = {
   getRelativeRoman,
   impliedTonicFromProgression,
   getAbsolutePatternRecs,
+  findMatchingSongs,
 };

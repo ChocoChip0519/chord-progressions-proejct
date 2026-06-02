@@ -19,7 +19,7 @@ function App() {
 
   const [session, setSession] = useState(null);
   const [showSetup, setShowSetup] = useState(false);
-  const [pianoMode, setPianoMode] = useState("chord");
+  const [pianoMode, setPianoMode] = useState("free");
   const [progression, setProgression] = useState([]);
   const [pendingChord, setPendingChord] = useState(null);
   const [playingIdx, setPlayingIdx] = useState(-1);
@@ -172,6 +172,11 @@ function App() {
       });
   }, [progression, session, inferredKey]);
 
+  const songMatches = useMemo(() => {
+    if (!session || !progression.length) return [];
+    return MUSIC.findMatchingSongs(progression, CHORD_DATA.songs[session.genre] || []);
+  }, [progression, session?.genre]);
+
   // isDirty 추적 — workspace 진입 후 progression/session 변경 시
   const isFirstRender = useRef(true);
   useEffect(() => {
@@ -255,7 +260,7 @@ function App() {
     if (!proj) return;
     AUDIO.ensureStarted();
     setSession(proj.session);
-    stackRef.current.set(proj.progression);
+    stackRef.current.load(proj.progression);
     setProgression(proj.progression);
     setActiveProjectId(id);
     setPendingChord(null);
@@ -384,7 +389,16 @@ function App() {
       if (e.key !== "ArrowRight" && e.key !== "ArrowLeft" && e.key !== "Escape") return;
 
       if (e.key === "Escape") {
-        if (pendingChord) { e.preventDefault(); setPendingChord(null); }
+        e.preventDefault();
+        if (pendingChord) {
+          setPendingChord(null);
+        } else {
+          const all = stackRef.current.getAll();
+          if (all.length) {
+            stackRef.current.set(all.slice(0, -1));
+            setProgression(stackRef.current.getAll());
+          }
+        }
         return;
       }
 
@@ -458,6 +472,7 @@ function App() {
               onUndo={() => {}} onRedo={() => {}} onPlayStop={() => {}}
               onAutoGen={() => {}} onClear={() => {}} onRemove={() => {}}
               onSave={handleSave} isDirty={isDirty}
+              songMatches={songMatches}
             />
           </div>
         )}
@@ -494,6 +509,7 @@ function App() {
         onRemove={handleRemove}
         onSave={handleSave}
         isDirty={isDirty}
+        songMatches={songMatches}
       />
       <Recommendations
         recs={recs}
