@@ -1,20 +1,20 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 
 const steps = [
   {
     num: 1,
     title: '장르와 키를 설정하세요',
-    desc: 'Pop, Jazz, Rock, Blues 중 장르를 고르고 키와 BPM을 설정합니다. 키를 모르면 비워둬도 자동으로 추론해 드려요.',
+    desc: <>Pop, Jazz, Rock, Blues 중 장르를 고르고 키와 BPM을 설정합니다.<br />키를 모르면 비워둬도 자동으로 추론해 드려요.</>,
   },
   {
     num: 2,
     title: '피아노로 코드를 눌러보세요',
-    desc: '가상 피아노에서 음을 직접 누르거나, 코드 모드에서 루트음만 눌러도 코드가 완성됩니다. Space로 진행에 추가하세요.',
+    desc: <>가상 피아노에서 음을 직접 누르거나, 코드 모드에서 루트음만 눌러도 코드가 완성됩니다.<br />Space로 진행에 추가하세요.</>,
   },
   {
     num: 3,
     title: '다음 코드를 추천받으세요',
-    desc: '입력한 진행을 분석해 어울리는 코드 4개를 자동 추천합니다. 추천 카드를 클릭하면 바로 미리 들어볼 수 있어요.',
+    desc: <>입력한 진행을 분석해 어울리는 코드 4개를 자동 추천합니다.<br />추천 카드를 클릭하면 바로 미리 들어볼 수 있어요.</>,
   },
   {
     num: 4,
@@ -45,6 +45,17 @@ const features = [
 ];
 
 function LandingPage({ onEnter }) {
+  const [videoOpen, setVideoOpen] = useState(false);
+
+  const closeVideo = useCallback(() => setVideoOpen(false), []);
+
+  useEffect(() => {
+    if (!videoOpen) return;
+    const onKey = (e) => { if (e.key === 'Escape') closeVideo(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [videoOpen, closeVideo]);
+
   useEffect(() => {
     const els = document.querySelectorAll('.landing-step');
     const observer = new IntersectionObserver(
@@ -84,14 +95,23 @@ function LandingPage({ onEnter }) {
             </button>
           </div>
           <div className="landing-hero-visual">
-            <video
-              className="landing-demo-video"
-              src="/demo.mov"
-              autoPlay
-              loop
-              muted
-              playsInline
-            />
+            <div className="landing-video-thumb" onClick={() => setVideoOpen(true)}>
+              <video
+                className="landing-demo-video"
+                src="/demo.mov"
+                autoPlay
+                loop
+                muted
+                playsInline
+              />
+              <div className="landing-video-play">
+                <div>
+                  <svg width="22" height="22" viewBox="0 0 20 20" fill="none">
+                    <polygon points="5,3 17,10 5,17" fill="currentColor" />
+                  </svg>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -124,6 +144,23 @@ function LandingPage({ onEnter }) {
           </div>
         </section>
       </div>
+
+      {videoOpen && (
+        <div className="video-modal-backdrop" onClick={closeVideo}>
+          <div className="video-modal-content" onClick={e => e.stopPropagation()}>
+            <button className="video-modal-close" onClick={closeVideo}>✕</button>
+            <video
+              className="video-modal-player"
+              src="/demo.mov"
+              autoPlay
+              loop
+              muted
+              playsInline
+              controls
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

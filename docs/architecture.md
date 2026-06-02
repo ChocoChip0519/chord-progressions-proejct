@@ -80,6 +80,32 @@ stackRef       // ProgressionStack 인스턴스 — push/undo/redo/set/clear
 | `progression.length >= 1`, 키 미확정 (inferKey < 0.7) | `getAbsolutePatternRecs` → 결과 없으면 `impliedTonicFromProgression` + graph 폴백 |
 | 키 확정 (직접 설정 or inferKey >= 0.7) | `getRelativeRoman` → `graph.getRecommendations(lastRoman, diatonic, 4, genre)` |
 
+### 가중치 계산 (data.js `buildTransitionsFromSongs`)
+
+`CHORD_DATA.transitions`는 하드코딩 값이 아닌 `songs.json` roman 배열에서 자동 집계된다.
+
+```
+songs.json[genre] 배열 순회
+  → roman[i] → roman[i+1] 전이 횟수 카운트
+  → 각 from 노드의 카운트를 확률로 정규화 (weight = count / total, 소수점 2자리)
+  → ChordGraph.loadFromData()에 전달
+```
+
+jazz는 songs.json roman 표기가 7th 생략형(ii, V, I…)이므로  
+`JAZZ_MAJOR_UP` / `JAZZ_MINOR_UP` 맵으로 그래프 노드 키(ii7, V7, Imaj7…)에 맞게 변환한다.
+
+### 연속 동일 코드 제어 (`lastRun` / `maxRepeat`)
+
+같은 코드가 progression 끝에 연속으로 나타난 횟수(`lastRun`)가 `maxRepeat[genre]` 이상이면  
+해당 코드를 추천 결과에서 제외한다(`allowSelf = lastRun < maxRepeat[genre]`).
+
+| 장르 | maxRepeat | 의도 |
+|------|-----------|------|
+| blues | 3 | I7 최대 3번 반복 후 IV7/V7으로 자연스럽게 유도 |
+| rock | 2 | 파워코드 리프 1회 반복 허용 |
+| pop | 1 | 즉시 다음 코드로 이동 유도 |
+| jazz | 1 | 즉시 다음 코드로 이동 유도 |
+
 ### 키 추론 흐름
 
 ```

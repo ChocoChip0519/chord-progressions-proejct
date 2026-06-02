@@ -88,6 +88,15 @@ function App() {
     }
 
     const last = progression[progression.length - 1];
+
+    // 끝에서부터 동일 코드가 몇 번 연속인지 카운트 (romanNumeral 기준)
+    let lastRun = 1;
+    for (let i = progression.length - 2; i >= 0; i--) {
+      if (progression[i].romanNumeral === last.romanNumeral) lastRun++;
+      else break;
+    }
+    const allowSelf = lastRun < (CHORD_DATA.maxRepeat[genre] ?? 1);
+
     const keyConfirmed = hasKey || (inferredKey && inferredKey.confidence >= 0.7);
 
     if (!keyConfirmed) {
@@ -95,14 +104,17 @@ function App() {
       const patternRecs = MUSIC.getAbsolutePatternRecs(progression, songs);
 
       if (patternRecs.length) {
-        return patternRecs.map(r => ({
-          romanNumeral: "?",
-          name: r.name,
-          weight: r.weight,
-          source: "genre",
-          mood: "",
-          chord: MUSIC.romanToChord("I", r.rootNote, "major"),
-        }));
+        return patternRecs
+          .filter(r => allowSelf || r.rootNote !== last.rootNote)
+          .slice(0, 4)
+          .map(r => ({
+            romanNumeral: "?",
+            name: r.name,
+            weight: r.weight,
+            source: "genre",
+            mood: "",
+            chord: MUSIC.romanToChord("I", r.rootNote, "major"),
+          }));
       }
       const implied = MUSIC.impliedTonicFromProgression(progression);
       const usedKey2 = implied ? implied.key : "C";
@@ -113,18 +125,21 @@ function App() {
       }
       if (!lastRoman2 || lastRoman2 === "?") return [];
       if (genre === "blues" && !lastRoman2.endsWith("7")) lastRoman2 = lastRoman2 + "7";
-      const fallbackRecs = graph.getRecommendations(lastRoman2, null, 4);
-      return fallbackRecs.map(r => {
-        const ch = MUSIC.romanToChord(r.romanNumeral, usedKey2, usedMode2);
-        return {
-          romanNumeral: r.romanNumeral,
-          name: ch ? ch.name : r.romanNumeral,
-          weight: r.weight,
-          source: "genre",
-          mood: CHORD_DATA.chordMoods[r.romanNumeral] || "",
-          chord: ch,
-        };
-      });
+      const fallbackRecs = graph.getRecommendations(lastRoman2, null, 5);
+      return fallbackRecs
+        .filter(r => allowSelf || r.romanNumeral !== lastRoman2)
+        .slice(0, 4)
+        .map(r => {
+          const ch = MUSIC.romanToChord(r.romanNumeral, usedKey2, usedMode2);
+          return {
+            romanNumeral: r.romanNumeral,
+            name: ch ? ch.name : r.romanNumeral,
+            weight: r.weight,
+            source: "genre",
+            mood: CHORD_DATA.chordMoods[r.romanNumeral] || "",
+            chord: ch,
+          };
+        });
     }
 
     const usedKey = hasKey ? session.key : inferredKey.key;
@@ -139,19 +154,22 @@ function App() {
 
     if (genre === "blues" && !lastRoman.endsWith("7")) lastRoman = lastRoman + "7";
 
-    const baseRecs = graph.getRecommendations(lastRoman, diatonic, 4, genre);
+    const baseRecs = graph.getRecommendations(lastRoman, diatonic, 5, genre);
 
-    return baseRecs.map(r => {
-      const ch = MUSIC.romanToChord(r.romanNumeral, usedKey, usedMode);
-      return {
-        romanNumeral: r.romanNumeral,
-        name: ch ? ch.name : r.romanNumeral,
-        weight: r.weight,
-        source: "key",
-        mood: CHORD_DATA.chordMoods[r.romanNumeral] || "",
-        chord: ch,
-      };
-    });
+    return baseRecs
+      .filter(r => allowSelf || r.romanNumeral !== lastRoman)
+      .slice(0, 4)
+      .map(r => {
+        const ch = MUSIC.romanToChord(r.romanNumeral, usedKey, usedMode);
+        return {
+          romanNumeral: r.romanNumeral,
+          name: ch ? ch.name : r.romanNumeral,
+          weight: r.weight,
+          source: "key",
+          mood: CHORD_DATA.chordMoods[r.romanNumeral] || "",
+          chord: ch,
+        };
+      });
   }, [progression, session, inferredKey]);
 
   // isDirty 추적 — workspace 진입 후 progression/session 변경 시

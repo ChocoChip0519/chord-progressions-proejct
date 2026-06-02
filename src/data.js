@@ -1,41 +1,49 @@
 import SONGS from './data/songs.json';
 
+// songs.json의 roman 배열에서 전이 빈도를 집계해 가중치 테이블을 생성한다.
+// getUpgradeMap: song => {원래도수: 변환도수} — jazz처럼 표기 정규화가 필요한 장르에 사용
+function buildTransitionsFromSongs(songList, getUpgradeMap) {
+  const counts = {};
+  for (const song of songList) {
+    const map = getUpgradeMap ? getUpgradeMap(song) : null;
+    const romans = map ? song.roman.map(r => map[r] ?? r) : song.roman;
+    for (let i = 0; i < romans.length - 1; i++) {
+      const from = romans[i];
+      const to   = romans[i + 1];
+      if (!counts[from]) counts[from] = {};
+      counts[from][to] = (counts[from][to] || 0) + 1;
+    }
+  }
+  const result = {};
+  for (const from in counts) {
+    const row   = counts[from];
+    const total = Object.values(row).reduce((s, v) => s + v, 0);
+    result[from] = {};
+    for (const to in row) {
+      result[from][to] = Math.round((row[to] / total) * 100) / 100;
+    }
+  }
+  return result;
+}
+
+// jazz songs.json은 7th 생략 표기(ii, V, I…)를 사용하므로
+// ChordGraph 노드 키(ii7, V7, Imaj7…)에 맞게 모드별로 업그레이드한다.
+const JAZZ_MAJOR_UP = {
+  I: "Imaj7", ii: "ii7", iii: "iii7", IV: "IVmaj7",
+  V: "V7", vi: "vi7", bII: "bII7", II: "II7",
+};
+const JAZZ_MINOR_UP = {
+  i: "im7", ii: "iiº", III: "IIImaj7", iv: "iv7",
+  V: "V7", VI: "VImaj7", VII: "VII7", bII: "bII7",
+};
+
 export const CHORD_DATA = {
   songs: SONGS,
   transitions: {
-    pop: {
-      I:   { IV: 0.28, V: 0.25, vi: 0.23, ii: 0.13, iii: 0.07 },
-      IV:  { V: 0.38, I: 0.28, ii: 0.18, vi: 0.09, IV: 0.07 },
-      V:   { I: 0.52, vi: 0.28, IV: 0.15, ii: 0.05 },
-      vi:  { IV: 0.38, V: 0.27, ii: 0.19, I: 0.11, iii: 0.05 },
-      ii:  { V: 0.62, IV: 0.22, I: 0.11, vi: 0.05 },
-      iii: { vi: 0.52, IV: 0.28, I: 0.20 },
-    },
-    jazz: {
-      "Imaj7":  { "vi7": 0.25, "ii7": 0.25, "IVmaj7": 0.20, "V7": 0.15, "VI7": 0.10, "bII7": 0.05 },
-      "ii7":    { "V7": 0.55, "bII7": 0.20, "IVmaj7": 0.12, "Imaj7": 0.08, "vi7": 0.05 },
-      "V7":     { "Imaj7": 0.60, "vi7": 0.20, "IVmaj7": 0.10, "ii7": 0.05, "bII7": 0.05 },
-      "vi7":    { "ii7": 0.50, "V7": 0.25, "IVmaj7": 0.15, "VI7": 0.10 },
-      "IVmaj7": { "ii7": 0.35, "V7": 0.30, "Imaj7": 0.20, "vi7": 0.10, "bII7": 0.05 },
-      "iii7":   { "vi7": 0.55, "IVmaj7": 0.25, "Imaj7": 0.20 },
-      "bII7":   { "Imaj7": 0.80, "vi7": 0.20 },
-      "VI7":    { "ii7": 0.70, "V7": 0.20, "IVmaj7": 0.10 },
-      "II7":    { "V7": 0.75, "ii7": 0.25 },
-    },
-    rock: {
-      I:    { IV: 0.34, V: 0.32, vi: 0.19, bVII: 0.09, ii: 0.06 },
-      IV:   { I: 0.34, V: 0.32, vi: 0.18, bVII: 0.11, ii: 0.05 },
-      V:    { I: 0.58, IV: 0.24, vi: 0.14, bVII: 0.04 },
-      vi:   { IV: 0.40, I: 0.30, V: 0.26, ii: 0.04 },
-      bVII: { IV: 0.42, I: 0.34, V: 0.24 },
-      ii:   { V: 0.55, IV: 0.30, I: 0.15 },
-      iii:  { vi: 0.5, IV: 0.3, I: 0.2 },
-    },
-    blues: {
-      I7:  { IV7: 0.50, V7: 0.30, I7: 0.20 },
-      IV7: { I7: 0.60, V7: 0.30, IV7: 0.10 },
-      V7:  { IV7: 0.50, I7: 0.40, V7: 0.10 },
-    },
+    pop:   buildTransitionsFromSongs(SONGS.pop),
+    jazz:  buildTransitionsFromSongs(SONGS.jazz, s => s.mode === "minor" ? JAZZ_MINOR_UP : JAZZ_MAJOR_UP),
+    rock:  buildTransitionsFromSongs(SONGS.rock),
+    blues: buildTransitionsFromSongs(SONGS.blues),
   },
 
   startingChords: {
@@ -78,6 +86,9 @@ export const CHORD_DATA = {
     VI7:     "부속 도미넌트 — ii7을 향해 강하게 당기는 느낌",
     II7:     "부속 도미넌트 — V7을 향해 강하게 당기는 느낌",
   },
+
+  // 동일 코드를 연속으로 몇 번까지 추천에 포함할지 (이 횟수부터는 자기 전이 제외)
+  maxRepeat: { pop: 1, jazz: 1, rock: 2, blues: 3 },
 
   genres: [
     { id: "pop",   name: "Pop",   label: "Pop",   example: "I–V–vi–IV", accent: "#6c63ff" },

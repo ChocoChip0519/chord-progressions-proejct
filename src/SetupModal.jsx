@@ -55,24 +55,23 @@ function SetupModal({ initial, onStart, onCancel }) {
               {CHORD_DATA.keys.map(k => (
                 <button key={k}
                   className={"key-cell mono" + (keyName === k ? " on" : "")}
+                  title="곡의 '홈베이스' 음이에요. 잘 모르면 — 을 선택하세요, 자동으로 찾아드려요"
                   onClick={() => setKeyName(k)}>{k}</button>
               ))}
               <button
                 className={"key-cell none" + (keyName === null ? " on" : "")}
+                title="곡의 '홈베이스' 음이에요. 잘 모르면 — 을 선택하세요, 자동으로 찾아드려요"
                 onClick={() => setKeyName(null)}>—</button>
-            </div>
-            <div className="cfg-hint">
-              {keyName === null
-                ? "키 없이 시작 — 진행을 분석해 자동 추론합니다"
-                : "선택된 키 기준으로 다이어토닉 추천이 적용됩니다"}
             </div>
           </Row>
 
           <Row label="Mode">
             <div className="seg">
               <button className={"seg-btn" + (mode === "major" ? " on" : "")}
+                title="밝고 경쾌한 느낌입니다."
                 onClick={() => setMode("major")}>Major</button>
               <button className={"seg-btn" + (mode === "minor" ? " on" : "")}
+                title="어둡고 감성적인 느낌입니다."
                 onClick={() => setMode("minor")}>Minor</button>
             </div>
           </Row>
@@ -82,6 +81,7 @@ function SetupModal({ initial, onStart, onCancel }) {
               <input type="range" min={60} max={180} value={bpm}
                 className="bpm-slider"
                 style={{ "--p": ((bpm - 60) / 120 * 100) + "%" }}
+                title="1분에 몇 번 박자가 치는지예요. 숫자가 클수록 빨라요"
                 onChange={e => setBpm(parseInt(e.target.value))} />
               <span className="bpm-value mono">{bpm}</span>
               <span className="cfg-unit">BPM</span>
