@@ -43,6 +43,7 @@ function SetupModal({ initial, onStart, onCancel }) {
               {CHORD_DATA.genres.map(g => (
                 <button key={g.id}
                   className={"seg-btn" + (g.id === genre ? " on" : "")}
+                  data-tooltip={g.vibe}
                   onClick={() => setGenre(g.id)}>
                   {g.label || g.name}
                 </button>
@@ -55,12 +56,12 @@ function SetupModal({ initial, onStart, onCancel }) {
               {CHORD_DATA.keys.map(k => (
                 <button key={k}
                   className={"key-cell mono" + (keyName === k ? " on" : "")}
-                  title="곡의 '홈베이스' 음이에요. 잘 모르면 — 을 선택하세요, 자동으로 찾아드려요"
+                  data-tooltip="곡의 '홈베이스' 음이에요"
                   onClick={() => setKeyName(k)}>{k}</button>
               ))}
               <button
                 className={"key-cell none" + (keyName === null ? " on" : "")}
-                title="곡의 '홈베이스' 음이에요. 잘 모르면 — 을 선택하세요, 자동으로 찾아드려요"
+                data-tooltip="잘 모르시면 여기를 선택하세요 — 자동으로 찾아드려요"
                 onClick={() => setKeyName(null)}>—</button>
             </div>
           </Row>
@@ -68,10 +69,10 @@ function SetupModal({ initial, onStart, onCancel }) {
           <Row label="Mode">
             <div className="seg">
               <button className={"seg-btn" + (mode === "major" ? " on" : "")}
-                title="밝고 경쾌한 느낌입니다."
+                data-tooltip="밝고 경쾌한 느낌"
                 onClick={() => setMode("major")}>Major</button>
               <button className={"seg-btn" + (mode === "minor" ? " on" : "")}
-                title="어둡고 감성적인 느낌입니다."
+                data-tooltip="어둡고 감성적인 느낌"
                 onClick={() => setMode("minor")}>Minor</button>
             </div>
           </Row>
@@ -81,7 +82,7 @@ function SetupModal({ initial, onStart, onCancel }) {
               <input type="range" min={60} max={180} value={bpm}
                 className="bpm-slider"
                 style={{ "--p": ((bpm - 60) / 120 * 100) + "%" }}
-                title="1분에 몇 번 박자가 치는지예요. 숫자가 클수록 빨라요"
+                data-tooltip="숫자가 클수록 빨라요"
                 onChange={e => setBpm(parseInt(e.target.value))} />
               <span className="bpm-value mono">{bpm}</span>
               <span className="cfg-unit">BPM</span>

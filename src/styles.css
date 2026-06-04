@@ -608,7 +608,7 @@ body {
   width: 560px;
   max-width: 92vw;
   max-height: 92vh;
-  overflow: auto;
+  overflow: visible;
   border: 1px solid var(--border);
   box-shadow: 0 12px 40px rgba(0,0,0,0.12);
   border-radius: 4px;
@@ -666,7 +666,7 @@ body {
   display: inline-flex;
   border: 1px solid var(--border);
   border-radius: 4px;
-  overflow: hidden;
+  overflow: visible;
   align-self: flex-start;
 }
 .seg-btn {
@@ -681,7 +681,8 @@ body {
   font-family: inherit;
   transition: background 100ms;
 }
-.seg-btn:last-child { border-right: none; }
+.seg-btn:first-child { border-radius: 3px 0 0 3px; }
+.seg-btn:last-child { border-right: none; border-radius: 0 3px 3px 0; }
 .seg-btn:hover { background: var(--hairline); color: var(--text); }
 .seg-btn.on {
   background: var(--text);
@@ -1115,6 +1116,24 @@ body {
 }
 .session-badge[data-tooltip]:hover::after  { transform: translateX(-50%) translateY(0); }
 .session-badge[data-tooltip]:hover::before { transform: translateX(-50%) translateY(0); }
+
+/* cfg-sheet 내부 툴팁 — 아래 방향 */
+.cfg-sheet [data-tooltip]::after {
+  bottom: auto;
+  top: calc(100% + 10px);
+  transform: translateX(-50%) translateY(-4px);
+  z-index: 200;
+}
+.cfg-sheet [data-tooltip]::before {
+  bottom: auto;
+  top: calc(100% + 4px);
+  border-top-color: transparent;
+  border-bottom-color: var(--dash-text);
+  transform: translateX(-50%) translateY(-4px);
+  z-index: 200;
+}
+.cfg-sheet [data-tooltip]:hover::after  { transform: translateX(-50%) translateY(0); }
+.cfg-sheet [data-tooltip]:hover::before { transform: translateX(-50%) translateY(0); }
 
 .landing-feat-icon {
   font-size: 30px;

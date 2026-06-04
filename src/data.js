@@ -91,10 +91,10 @@ export const CHORD_DATA = {
   maxRepeat: { pop: 1, jazz: 1, rock: 2, blues: 3 },
 
   genres: [
-    { id: "pop",   name: "Pop",   label: "Pop",   example: "I–V–vi–IV", accent: "#6c63ff" },
-    { id: "jazz",  name: "Jazz",  label: "Jazz",  example: "ii7–V7–Imaj7", accent: "#e07b39" },
-    { id: "rock",  name: "Rock",  label: "Rock",  example: "I–IV–V–I", accent: "#d63031" },
-    { id: "blues", name: "Blues", label: "Blues", example: "12-bar",   accent: "#2980b9" },
+    { id: "pop",   name: "Pop",   label: "Pop",   example: "I–V–vi–IV",    accent: "#6c63ff", vibe: "밝고 따라 부르기 쉬운 느낌" },
+    { id: "jazz",  name: "Jazz",  label: "Jazz",  example: "ii7–V7–Imaj7", accent: "#e07b39", vibe: "세련되고 감성적인 느낌" },
+    { id: "rock",  name: "Rock",  label: "Rock",  example: "I–IV–V–I",     accent: "#d63031", vibe: "강렬하고 에너지 넘치는 느낌" },
+    { id: "blues", name: "Blues", label: "Blues", example: "12-bar",        accent: "#2980b9", vibe: "애절하고 블루지한 느낌" },
   ],
 
   keys: ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"],
