@@ -1,5 +1,8 @@
 node_modules/
 dist/
+docs/
 .env
 .DS_Store
 changes-summary.html
+.algorithm-explained.html
+.CLAUDE.md
