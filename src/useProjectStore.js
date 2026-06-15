@@ -3,6 +3,11 @@ import { useState, useEffect } from 'react';
 const PROJECTS_KEY = 'chordflow_projects';
 const FOLDERS_KEY = 'chordflow_folders';
 
+export const FOLDER_COLORS = [
+  '#E8825A', '#5B8FD4', '#6DC08A', '#C57BD6', '#E8C45A',
+  '#5BB8C4', '#E87B8F', '#7BC4D4', '#A08CD4', '#8DC47B',
+];
+
 function loadFromStorage(key) {
   try {
     return JSON.parse(localStorage.getItem(key)) || [];
@@ -13,7 +18,11 @@ function loadFromStorage(key) {
 
 export function useProjectStore() {
   const [projects, setProjects] = useState(() => loadFromStorage(PROJECTS_KEY));
-  const [folders, setFolders] = useState(() => loadFromStorage(FOLDERS_KEY));
+  const [folders, setFolders] = useState(() => {
+    const loaded = loadFromStorage(FOLDERS_KEY);
+    // 기존 폴더에 color 없으면 인덱스 기반으로 할당
+    return loaded.map((f, i) => f.color ? f : { ...f, color: FOLDER_COLORS[i % FOLDER_COLORS.length] });
+  });
 
   useEffect(() => {
     localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));

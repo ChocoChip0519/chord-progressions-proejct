@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 
 const CHORD_DATA_GENRES_COLORS = {
   pop: '#6c63ff',
@@ -6,13 +7,6 @@ const CHORD_DATA_GENRES_COLORS = {
   rock: '#d63031',
   blues: '#2980b9',
 };
-
-function hexToRgba(hex, a) {
-  const r = parseInt(hex.slice(1,3), 16);
-  const g = parseInt(hex.slice(3,5), 16);
-  const b = parseInt(hex.slice(5,7), 16);
-  return `rgba(${r},${g},${b},${a})`;
-}
 
 function relativeTime(ts) {
   const diff = Date.now() - ts;
@@ -31,25 +25,52 @@ function chordPreviewLines(progression) {
   return progression.map(c => c.name).join('  →  ');
 }
 
+function FolderPickerModal({ project, folders, onMove, onClose }) {
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  return ReactDOM.createPortal(
+    <div className="folder-picker-backdrop" onMouseDown={onClose} onClick={e => e.stopPropagation()}>
+      <div className="folder-picker-panel" onMouseDown={e => e.stopPropagation()}>
+        <div className="folder-picker-title">폴더로 이동</div>
+        <button
+          className={`folder-picker-option${!project.folderId ? ' active' : ''}`}
+          onClick={() => { onMove(project.id, null); onClose(); }}
+        >
+          <span className="folder-picker-dot" style={{ background: '#A89F95' }} />
+          <span style={{ flex: 1 }}>폴더 없음</span>
+          {!project.folderId && <span className="folder-picker-check">✓</span>}
+        </button>
+        {folders.length > 0 && <div className="folder-picker-divider" />}
+        {folders.map(f => (
+          <button
+            key={f.id}
+            className={`folder-picker-option${project.folderId === f.id ? ' active' : ''}`}
+            onClick={() => { onMove(project.id, f.id); onClose(); }}
+          >
+            <span className="folder-picker-dot" style={{ background: f.color || '#A89F95' }} />
+            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
+            {project.folderId === f.id && <span className="folder-picker-check">✓</span>}
+          </button>
+        ))}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 function ProjectCard({ project, folders, isListView, animDelay = 0, onOpen, onDelete, onRename, onMove }) {
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(project.name);
   const [showMove, setShowMove] = useState(false);
   const inputRef = useRef(null);
-  const moveRef = useRef(null);
 
   useEffect(() => {
     if (editing && inputRef.current) inputRef.current.select();
   }, [editing]);
-
-  useEffect(() => {
-    if (!showMove) return;
-    const handler = (e) => {
-      if (moveRef.current && !moveRef.current.contains(e.target)) setShowMove(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showMove]);
 
   const commitRename = () => {
     const name = editName.trim() || '제목 없음';
@@ -57,11 +78,12 @@ function ProjectCard({ project, folders, isListView, animDelay = 0, onOpen, onDe
     setEditing(false);
   };
 
+  const startEditing = () => { setEditing(true); setEditName(project.name); };
+
   const folder = folders.find(f => f.id === project.folderId);
   const genre = project.session?.genre;
   const accentColor = genre ? (CHORD_DATA_GENRES_COLORS[genre] || '#A89F95') : '#A89F95';
   const folderColor = folder?.color || accentColor;
-  const tagBg = hexToRgba(folderColor, 0.12);
   const chordLine = chordPreviewLines(project.progression);
 
   return (
@@ -92,7 +114,7 @@ function ProjectCard({ project, folders, isListView, animDelay = 0, onOpen, onDe
       )}
 
       <div className="proj-card-footer">
-        <div className="proj-card-name" onDoubleClick={e => { e.stopPropagation(); setEditing(true); setEditName(project.name); }}>
+        <div className="proj-card-name" onDoubleClick={e => { e.stopPropagation(); startEditing(); }}>
           {editing ? (
             <input
               ref={inputRef}
@@ -115,7 +137,8 @@ function ProjectCard({ project, folders, isListView, animDelay = 0, onOpen, onDe
 
         <div className="proj-card-footer-meta">
           {folder
-            ? <span className="proj-card-folder-tag" style={{ background: tagBg, color: folderColor }}>
+            ? <span className="proj-card-folder-tag">
+                <span className="proj-card-folder-dot" style={{ background: folder.color || '#A89F95' }} />
                 {folder.name}
               </span>
             : <span />
@@ -125,28 +148,11 @@ function ProjectCard({ project, folders, isListView, animDelay = 0, onOpen, onDe
       </div>
 
       <div className="proj-card-actions" onClick={e => e.stopPropagation()}>
-        <div style={{ position: 'relative' }} ref={moveRef}>
-          <button
-            className="proj-card-action-btn"
-            title="폴더 이동"
-            onClick={() => setShowMove(v => !v)}
-          >📁</button>
-          {showMove && (
-            <div className="proj-move-dropdown">
-              <button
-                className={`proj-move-option${!project.folderId ? ' active' : ''}`}
-                onClick={() => { onMove(project.id, null); setShowMove(false); }}
-              >폴더 없음</button>
-              {folders.map(f => (
-                <button
-                  key={f.id}
-                  className={`proj-move-option${project.folderId === f.id ? ' active' : ''}`}
-                  onClick={() => { onMove(project.id, f.id); setShowMove(false); }}
-                >{f.name}</button>
-              ))}
-            </div>
-          )}
-        </div>
+        <button
+          className="proj-card-action-btn"
+          title="폴더 이동"
+          onClick={() => setShowMove(true)}
+        >📁</button>
         <button
           className="proj-card-action-btn danger"
           title="삭제"
@@ -155,6 +161,15 @@ function ProjectCard({ project, folders, isListView, animDelay = 0, onOpen, onDe
           }}
         >🗑</button>
       </div>
+
+      {showMove && (
+        <FolderPickerModal
+          project={project}
+          folders={folders}
+          onMove={onMove}
+          onClose={() => setShowMove(false)}
+        />
+      )}
     </div>
   );
 }

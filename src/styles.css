@@ -1328,6 +1328,7 @@ body {
 }
 
 .dash-sidebar-dot {
+  display: inline-block;
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -1540,6 +1541,7 @@ body {
 .dash-folder-chevron[data-open="true"] { transform: rotate(90deg); }
 
 .dash-folder-dot-badge {
+  display: inline-block;
   width: 9px;
   height: 9px;
   border-radius: 50%;
@@ -1695,7 +1697,7 @@ body {
   border-radius: 11px;
   box-shadow: var(--dash-card-shadow);
   cursor: pointer;
-  transition: box-shadow 0.18s, transform 0.15s;
+  transition: box-shadow 0.18s;
   overflow: hidden;
   position: relative;
   display: flex;
@@ -1704,9 +1706,7 @@ body {
 }
 .proj-card:hover {
   box-shadow: var(--dash-card-hover);
-  transform: translateY(-2px);
 }
-.proj-card:active { transform: translateY(0); }
 
 .dash-grid:not(.list-view) .proj-card {
   aspect-ratio: 3/2;
@@ -1818,11 +1818,24 @@ body {
 }
 
 .proj-card-folder-tag {
-  display: inline-block;
-  padding: 1px 6px;
-  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 9px;
   font-weight: 500;
+  color: var(--dash-text-2);
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proj-card-folder-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .proj-card-actions {
@@ -1848,23 +1861,50 @@ body {
 .proj-card-action-btn:hover { background: white; color: var(--dash-text); }
 .proj-card-action-btn.danger:hover { color: #C0392B; border-color: #C0392B; }
 
-.proj-move-dropdown {
-  position: absolute;
-  top: 34px;
-  right: 9px;
-  z-index: 100;
-  background: var(--dash-card);
-  border: 0.5px solid var(--dash-border);
-  border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.14);
-  min-width: 150px;
-  overflow: hidden;
+/* ── 폴더 이동 모달 ── */
+.folder-picker-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.28);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.proj-move-option {
-  display: block;
+
+.folder-picker-panel {
+  background: var(--dash-card);
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.22);
+  min-width: 220px;
+  max-width: 300px;
   width: 100%;
-  padding: 8px 13px;
-  font-size: 12px;
+  padding: 6px 0;
+  animation: fadeUp 0.15s ease;
+}
+
+.folder-picker-title {
+  padding: 10px 16px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--dash-text-3);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.folder-picker-divider {
+  height: 0.5px;
+  background: var(--dash-border);
+  margin: 4px 0;
+}
+
+.folder-picker-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 16px;
+  font-size: 13px;
   color: var(--dash-text);
   background: none;
   border: none;
@@ -1873,8 +1913,21 @@ body {
   font-family: inherit;
   transition: background 0.1s;
 }
-.proj-move-option:hover { background: rgba(0,0,0,0.04); }
-.proj-move-option.active { color: var(--accent); font-weight: 600; }
+.folder-picker-option:hover { background: rgba(0, 0, 0, 0.04); }
+.folder-picker-option.active { font-weight: 600; }
+
+.folder-picker-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.folder-picker-check {
+  font-size: 12px;
+  color: var(--dash-text-2);
+}
 
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(6px); }

@@ -1,21 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ProjectCard from './ProjectCard.jsx';
-
-const FOLDER_COLORS = ['#E8825A','#5B8FD4','#6DC08A','#C57BD6','#E8C45A','#5BB8C4','#D47C5B'];
+import { FOLDER_COLORS } from './useProjectStore.js';
 
 function FolderBlock({
-  folder, items, isListView,
+  folder, folderIndex, items, isListView,
   editingFolder, folderInputRef, folderEditName,
   setFolderEditName, commitFolderRename, setEditingFolder,
   onDeleteFolder, onOpenProject, onDeleteProject, onRenameProject, onMoveProject, folders,
 }) {
   const [collapsed, setCollapsed] = useState(true);
+  const dotColor = folder.color || FOLDER_COLORS[folderIndex % FOLDER_COLORS.length];
 
   return (
     <section className={`dash-folder-block${items.length > 0 && !collapsed ? ' has-items' : ''}`}>
       <div className="dash-folder-header" onClick={() => setCollapsed(v => !v)}>
         <span className="dash-folder-chevron" data-open={!collapsed}>›</span>
-        <span className="dash-folder-dot-badge" style={{ background: folder.color || '#A89F95' }} />
+        <span className="dash-folder-dot-badge" style={{ background: dotColor }} />
         {editingFolder === folder.id ? (
           <input
             ref={folderInputRef}
@@ -159,15 +159,16 @@ function ProjectDashboard({
           <>
             <div className="dash-sidebar-divider" />
             <div className="dash-sidebar-label">폴더</div>
-            {folders.map(f => {
+            {folders.map((f, i) => {
               const cnt = projects.filter(p => p.folderId === f.id).length;
+              const dotColor = f.color || FOLDER_COLORS[i % FOLDER_COLORS.length];
               return (
                 <div
                   key={f.id}
                   className={`dash-sidebar-item${activeFilter === f.id ? ' active' : ''}`}
                   onClick={() => selectFilter(f.id, f.name)}
                 >
-                  <span className="dash-sidebar-dot" style={{ background: f.color || '#A89F95' }} />
+                  <span className="dash-sidebar-dot" style={{ background: dotColor }} />
                   <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {f.name}
                   </span>
@@ -279,10 +280,11 @@ function ProjectDashboard({
                 {/* all / 폴더 필터 */}
                 {activeFilter !== 'recent' && activeFilter !== 'unfiled' && (
                   <>
-                    {byFolder.map(({ folder, items }) => (
+                    {byFolder.map(({ folder, items }, idx) => (
                       <FolderBlock
                         key={folder.id}
                         folder={folder}
+                        folderIndex={folders.findIndex(f => f.id === folder.id)}
                         items={items}
                         isListView={isListView}
                         editingFolder={editingFolder}
