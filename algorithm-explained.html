@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChordFlow — 핵심 알고리즘 설명</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d2e;
+    --surface2: #242740;
+    --border: #2e3250;
+    --text: #e2e4f0;
+    --muted: #7b82a8;
+    --accent: #6c63ff;
+    --accent2: #e07b39;
+    --accent3: #2980b9;
+    --green: #4caf82;
+    --red: #e05c5c;
+    --yellow: #f0c040;
+    --code-bg: #141622;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+  }
+
+  /* ── 헤더 ── */
+  header {
+    background: linear-gradient(135deg, #1a1d2e 0%, #0f1117 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 48px 0 40px;
+    text-align: center;
+  }
+  header h1 {
+    font-size: 2.2rem;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    background: linear-gradient(90deg, var(--accent), #a8a4ff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  header p {
+    color: var(--muted);
+    margin-top: 8px;
+    font-size: 0.95rem;
+  }
+
+  /* ── 레이아웃 ── */
+  .container { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+  .toc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 28px;
+    margin: 40px auto;
+    max-width: 900px;
+  }
+  .toc h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 12px; }
+  .toc ol { padding-left: 20px; }
+  .toc li { margin: 6px 0; }
+  .toc a { color: var(--accent); text-decoration: none; font-weight: 500; }
+  .toc a:hover { text-decoration: underline; }
+
+  /* ── 섹션 ── */
+  .section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    margin: 32px auto;
+    max-width: 900px;
+    overflow: hidden;
+  }
+  .section-header {
+    padding: 28px 32px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  .badge {
+    background: var(--accent);
+    color: #fff;
+    border-radius: 8px;
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    white-space: nowrap;
+    margin-top: 4px;
+    flex-shrink: 0;
+  }
+  .badge.graph { background: #4caf82; }
+  .badge.stack { background: #e07b39; }
+  .badge.queue { background: #2980b9; }
+  .badge.hash  { background: #9b59b6; }
+  .badge.logic { background: #e05c5c; }
+  .section-header h2 { font-size: 1.25rem; font-weight: 700; }
+  .section-header p  { color: var(--muted); font-size: 0.9rem; margin-top: 4px; }
+  .section-body { padding: 28px 32px; }
+
+  /* ── 코드 블록 ── */
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 22px;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    line-height: 1.65;
+    margin: 16px 0;
+  }
+  code { font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace; }
+  .k  { color: #c792ea; } /* keyword */
+  .f  { color: #82aaff; } /* function */
+  .s  { color: #c3e88d; } /* string */
+  .n  { color: #f78c6c; } /* number */
+  .c  { color: #546e8a; font-style: italic; } /* comment */
+  .v  { color: #89ddff; } /* variable */
+  .p  { color: var(--text); } /* punctuation */
+
+  /* ── 시각화 ── */
+  .viz {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin: 16px 0;
+  }
+  .viz-title {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  /* 그래프 SVG */
+  .graph-wrap { overflow-x: auto; }
+  svg text { font-family: 'Cascadia Code', monospace; }
+
+  /* 플로우 다이어그램 */
+  .flow {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    align-items: flex-start;
+  }
+  .flow-step {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+  }
+  .flow-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 0.88rem;
+    font-family: 'Cascadia Code', monospace;
+    flex: 1;
+  }
+  .flow-box.highlight { border-color: var(--accent); background: rgba(108,99,255,0.12); }
+  .flow-box.green     { border-color: var(--green);  background: rgba(76,175,130,0.12); }
+  .flow-box.orange    { border-color: var(--accent2);background: rgba(224,123,57,0.12); }
+  .flow-box.blue      { border-color: var(--accent3);background: rgba(41,128,185,0.12); }
+  .flow-box.red       { border-color: var(--red);    background: rgba(224,92,92,0.12); }
+  .flow-arrow {
+    color: var(--muted);
+    font-size: 1.2rem;
+    margin: 2px 0 2px 20px;
+    line-height: 1;
+  }
+  .flow-note {
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-left: 8px;
+    flex-shrink: 0;
+  }
+
+  /* 테이블 */
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.88rem; }
+  th {
+    background: var(--surface2);
+    color: var(--muted);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .mono { font-family: 'Cascadia Code', monospace; font-size: 0.83rem; }
+
+  /* 설명 박스 */
+  .explain {
+    background: rgba(108,99,255,0.07);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+    padding: 14px 18px;
+    margin: 16px 0;
+    font-size: 0.9rem;
+    color: var(--text);
+  }
+  .explain.orange { background: rgba(224,123,57,0.07); border-color: var(--accent2); }
+  .explain.green  { background: rgba(76,175,130,0.07); border-color: var(--green); }
+  .explain.blue   { background: rgba(41,128,185,0.07); border-color: var(--accent3); }
+
+  /* 스택 시각화 */
+  .stack-viz {
+    display: flex;
+    gap: 24px;
+    align-items: flex-end;
+    justify-content: center;
+    flex-wrap: wrap;
+    padding: 8px 0;
+  }
+  .stack-col { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 100px; }
+  .stack-col label { font-size: 0.75rem; color: var(--muted); margin-bottom: 4px; }
+  .stack-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 14px;
+    font-family: 'Cascadia Code', monospace;
+    font-size: 0.8rem;
+    width: 100%;
+    text-align: center;
+  }
+  .stack-item.active { background: rgba(108,99,255,0.2); border-color: var(--accent); color: #a8a4ff; }
+  .stack-item.past   { background: rgba(224,123,57,0.15); border-color: var(--accent2); color: #f0a070; }
+  .stack-item.future { background: rgba(76,175,130,0.15); border-color: var(--green); color: #80d8a8; }
+
+  /* 큐 시각화 */
+  .queue-viz {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 4px 0;
+  }
+  .queue-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-family: 'Cascadia Code', monospace;
+    font-size: 0.82rem;
+    text-align: center;
+  }
+  .queue-item.head { background: rgba(41,128,185,0.2); border-color: var(--accent3); color: #70c0f0; }
+  .queue-arrow { color: var(--muted); font-size: 1.1rem; }
+
+  /* 키 추론 시각화 */
+  .key-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
+    margin: 12px 0;
+  }
+  .key-cell {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 4px;
+    text-align: center;
+    font-family: 'Cascadia Code', monospace;
+    font-size: 0.75rem;
+  }
+  .key-cell .kname { font-weight: 700; font-size: 0.88rem; }
+  .key-cell .kmode { color: var(--muted); font-size: 0.68rem; }
+  .key-cell .kbar  { height: 4px; border-radius: 2px; margin-top: 6px; background: var(--border); overflow: hidden; }
+  .key-cell .kfill { height: 100%; background: var(--accent); border-radius: 2px; }
+  .key-cell.winner { border-color: var(--green); background: rgba(76,175,130,0.1); }
+  .key-cell.winner .kfill { background: var(--green); }
+
+  h3 { font-size: 0.95rem; font-weight: 600; color: var(--accent); margin: 24px 0 10px; }
+  p  { margin: 10px 0; color: var(--text); }
+  ul { padding-left: 20px; margin: 8px 0; }
+  li { margin: 4px 0; color: var(--text); font-size: 0.9rem; }
+  strong { color: #c8c4ff; }
+
+  footer {
+    text-align: center;
+    padding: 40px 24px;
+    color: var(--muted);
+    font-size: 0.85rem;
+    border-top: 1px solid var(--border);
+    margin-top: 48px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>ChordFlow 핵심 알고리즘</h1>
+  <p>자료구조 수업 프로젝트 · 그래프 / 스택 / 큐 / 해시맵 적용</p>
+</header>
+
+<!-- 목차 -->
+<div class="toc container">
+  <h2>목차</h2>
+  <ol>
+    <li><a href="#s1">buildTransitionsFromSongs — 해시맵 빈도 집계 & 확률 테이블</a></li>
+    <li><a href="#s2">ChordGraph — 방향 가중치 그래프 (인접 리스트)</a></li>
+    <li><a href="#s3">추천 로직 3단계 Cascade</a></li>
+    <li><a href="#s4">inferKey — 24후보 스코어링으로 키 자동 추론</a></li>
+    <li><a href="#s5">ProgressionStack — Undo/Redo 이중 스택</a></li>
+    <li><a href="#s6">PlaybackQueue — FIFO 재생 큐</a></li>
+  </ol>
+</div>
+
+
+<!-- ══════════════════════════════════════════ -->
+<!-- 1. buildTransitionsFromSongs              -->
+<!-- ══════════════════════════════════════════ -->
+<div class="section" id="s1">
+  <div class="section-header">
+    <span class="badge hash">HashMap</span>
+    <div>
+      <h2>buildTransitionsFromSongs</h2>
+      <p>songs.json의 실제 곡 데이터에서 코드 전이 확률 테이블을 자동 생성한다</p>
+    </div>
+  </div>
+  <div class="section-body">
+
+    <h3>실제 코드 (data.js)</h3>
+<pre><code><span class="k">function</span> <span class="f">buildTransitionsFromSongs</span>(<span class="v">songList</span>, <span class="v">getUpgradeMap</span>) {
+  <span class="k">const</span> <span class="v">counts</span> = {};
+
+  <span class="c">// 1단계: 모든 곡에서 [roman[i] → roman[i+1]] 전이 카운트</span>
+  <span class="k">for</span> (<span class="k">const</span> <span class="v">song</span> <span class="k">of</span> <span class="v">songList</span>) {
+    <span class="k">const</span> <span class="v">map</span> = <span class="v">getUpgradeMap</span> ? <span class="f">getUpgradeMap</span>(<span class="v">song</span>) : <span class="k">null</span>;
+    <span class="k">const</span> <span class="v">romans</span> = <span class="v">map</span> ? <span class="v">song</span>.<span class="v">roman</span>.<span class="f">map</span>(<span class="v">r</span> => <span class="v">map</span>[<span class="v">r</span>] ?? <span class="v">r</span>) : <span class="v">song</span>.<span class="v">roman</span>;
+    <span class="k">for</span> (<span class="k">let</span> <span class="v">i</span> = <span class="n">0</span>; <span class="v">i</span> < <span class="v">romans</span>.<span class="v">length</span> - <span class="n">1</span>; <span class="v">i</span>++) {
+      <span class="k">const</span> <span class="v">from</span> = <span class="v">romans</span>[<span class="v">i</span>];
+      <span class="k">const</span> <span class="v">to</span>   = <span class="v">romans</span>[<span class="v">i</span> + <span class="n">1</span>];
+      <span class="k">if</span> (!<span class="v">counts</span>[<span class="v">from</span>]) <span class="v">counts</span>[<span class="v">from</span>] = {};
+      <span class="v">counts</span>[<span class="v">from</span>][<span class="v">to</span>] = (<span class="v">counts</span>[<span class="v">from</span>][<span class="v">to</span>] || <span class="n">0</span>) + <span class="n">1</span>;
+    }
+  }
+
+  <span class="c">// 2단계: 각 from 코드에서 출발하는 전이를 확률로 정규화</span>
+  <span class="k">const</span> <span class="v">result</span> = {};
+  <span class="k">for</span> (<span class="k">const</span> <span class="v">from</span> <span class="k">in</span> <span class="v">counts</span>) {
+    <span class="k">const</span> <span class="v">row</span>   = <span class="v">counts</span>[<span class="v">from</span>];
+    <span class="k">const</span> <span class="v">total</span> = <span class="f">Object.values</span>(<span class="v">row</span>).<span class="f">reduce</span>((<span class="v">s</span>, <span class="v">v</span>) => <span class="v">s</span> + <span class="v">v</span>, <span class="n">0</span>);
+    <span class="v">result</span>[<span class="v">from</span>] = {};
+    <span class="k">for</span> (<span class="k">const</span> <span class="v">to</span> <span class="k">in</span> <span class="v">row</span>) {
+      <span class="v">result</span>[<span class="v">from</span>][<span class="v">to</span>] = <span class="f">Math.round</span>((<span class="v">row</span>[<span class="v">to</span>] / <span class="v">total</span>) * <span class="n">100</span>) / <span class="n">100</span>;
+    }
+  }
+  <span class="k">return</span> <span class="v">result</span>;
+}</code></pre>
+
+    <h3>동작 예시 — Pop songs.json 처리</h3>
+    <div class="viz">
+      <div class="viz-title">입력 데이터 (songs.json 일부)</div>
+      <table>
+        <thead><tr><th>곡</th><th>roman 배열</th><th>전이 쌍</th></tr></thead>
+        <tbody>
+          <tr><td>Let It Be (Beatles)</td><td class="mono">["I","V","vi","IV"]</td><td class="mono">I→V, V→vi, vi→IV</td></tr>
+          <tr><td>With or Without You (U2)</td><td class="mono">["I","V","vi","IV"]</td><td class="mono">I→V, V→vi, vi→IV</td></tr>
+          <tr><td>Thinking Out Loud (Ed Sheeran)</td><td class="mono">["I","IV","V","vi"]</td><td class="mono">I→IV, IV→V, V→vi</td></tr>
+          <tr><td>Perfect (Ed Sheeran)</td><td class="mono">["I","vi","IV","V"]</td><td class="mono">I→vi, vi→IV, IV→V</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="viz">
+      <div class="viz-title">집계 결과 → 정규화</div>
+      <div class="flow">
+        <div class="flow-step">
+          <div class="flow-box">counts["I"] = { V: 2, IV: 1, vi: 1 }  <span style="color:var(--muted)">← 총 4회</span></div>
+        </div>
+        <div class="flow-arrow">↓ 각 count / total</div>
+        <div class="flow-step">
+          <div class="flow-box highlight">result["I"] = { V: 0.50, IV: 0.25, vi: 0.25 }</div>
+          <span class="flow-note">확률 합산 = 1.0</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="explain">
+      <strong>왜 HashMap인가?</strong> 코드 이름(문자열)이 키, 다음 코드가 값인 구조는 O(1) 조회가 필요하다.
+      배열을 쓰면 "I"를 찾기 위해 O(n) 순회가 필요하지만 해시맵은 즉시 접근 가능하다.
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════ -->
+<!-- 2. ChordGraph                             -->
+<!-- ══════════════════════════════════════════ -->
+<div class="section" id="s2">
+  <div class="section-header">
+    <span class="badge graph">Graph</span>
+    <div>
+      <h2>ChordGraph — 방향 가중치 그래프</h2>
+      <p>인접 리스트로 구현. 각 엣지 가중치 = 전이 확률</p>
+    </div>
+  </div>
+  <div class="section-body">
+
+    <h3>실제 코드 (structures.js)</h3>
+<pre><code><span class="k">export class</span> <span class="f">ChordGraph</span> {
+  <span class="f">constructor</span>() { <span class="k">this</span>.<span class="v">adj</span> = <span class="k">new</span> <span class="f">Map</span>(); }
+
+  <span class="f">loadFromData</span>(<span class="v">data</span>) {
+    <span class="k">this</span>.<span class="v">adj</span>.<span class="f">clear</span>();
+    <span class="k">for</span> (<span class="k">const</span> <span class="v">from</span> <span class="k">in</span> <span class="v">data</span>) {
+      <span class="k">const</span> <span class="v">m</span> = <span class="k">new</span> <span class="f">Map</span>();
+      <span class="k">for</span> (<span class="k">const</span> <span class="v">to</span> <span class="k">in</span> <span class="v">data</span>[<span class="v">from</span>]) <span class="v">m</span>.<span class="f">set</span>(<span class="v">to</span>, <span class="v">data</span>[<span class="v">from</span>][<span class="v">to</span>]);
+      <span class="k">this</span>.<span class="v">adj</span>.<span class="f">set</span>(<span class="v">from</span>, <span class="v">m</span>);
+    }
+  }
+
+  <span class="c">// 현재 노드(from)의 이웃을 꺼내 diatonic 필터 후 상위 N개 반환</span>
+  <span class="f">getRecommendations</span>(<span class="v">from</span>, <span class="v">diatonic</span>, <span class="v">topN</span> = <span class="n">4</span>, <span class="v">genre</span> = <span class="k">null</span>) {
+    <span class="k">const</span> <span class="v">m</span> = <span class="k">this</span>.<span class="v">adj</span>.<span class="f">get</span>(<span class="v">from</span>);
+    <span class="k">if</span> (!<span class="v">m</span>) <span class="k">return</span> [];
+    <span class="k">let</span> <span class="v">arr</span> = [...<span class="v">m</span>.<span class="f">entries</span>()].<span class="f">map</span>(([<span class="v">r</span>, <span class="v">w</span>]) => ({ <span class="v">romanNumeral</span>: <span class="v">r</span>, <span class="v">weight</span>: <span class="v">w</span> }));
+    <span class="k">if</span> (<span class="v">diatonic</span> && <span class="v">diatonic</span>.<span class="v">length</span>) {
+      <span class="k">const</span> <span class="v">allowed</span> = <span class="k">new</span> <span class="f">Set</span>(<span class="v">diatonic</span>);
+      <span class="k">const</span> <span class="v">JAZZ_EXTRAS</span> = <span class="k">new</span> <span class="f">Set</span>([<span class="s">"bII7"</span>, <span class="s">"VI7"</span>, <span class="s">"II7"</span>]);
+      <span class="v">arr</span> = <span class="v">arr</span>.<span class="f">filter</span>(<span class="v">x</span> =>
+        <span class="v">allowed</span>.<span class="f">has</span>(<span class="v">x</span>.<span class="v">romanNumeral</span>) ||
+        (<span class="v">genre</span> === <span class="s">"rock"</span> && <span class="v">x</span>.<span class="v">romanNumeral</span> === <span class="s">"bVII"</span>) ||
+        (<span class="v">genre</span> === <span class="s">"jazz"</span> && <span class="v">JAZZ_EXTRAS</span>.<span class="f">has</span>(<span class="v">x</span>.<span class="v">romanNumeral</span>))
+      );
+    }
+    <span class="v">arr</span>.<span class="f">sort</span>((<span class="v">a</span>, <span class="v">b</span>) => <span class="v">b</span>.<span class="v">weight</span> - <span class="v">a</span>.<span class="v">weight</span>);
+    <span class="k">return</span> <span class="v">arr</span>.<span class="f">slice</span>(<span class="n">0</span>, <span class="v">topN</span>);
+  }
+
+  <span class="c">// 가중치 기반 랜덤 워크 — 자동 코드 진행 생성용</span>
+  <span class="f">randomWalk</span>(<span class="v">start</span>, <span class="v">steps</span>, <span class="v">diatonic</span>, <span class="v">genre</span> = <span class="k">null</span>) {
+    <span class="k">const</span> <span class="v">out</span> = [<span class="v">start</span>];
+    <span class="k">let</span> <span class="v">cur</span> = <span class="v">start</span>;
+    <span class="k">for</span> (<span class="k">let</span> <span class="v">i</span> = <span class="n">0</span>; <span class="v">i</span> < <span class="v">steps</span>; <span class="v">i</span>++) {
+      <span class="k">const</span> <span class="v">recs</span> = <span class="k">this</span>.<span class="f">getRecommendations</span>(<span class="v">cur</span>, <span class="v">diatonic</span>, <span class="n">8</span>, <span class="v">genre</span>);
+      <span class="k">if</span> (!<span class="v">recs</span>.<span class="v">length</span>) <span class="k">break</span>;
+      <span class="k">const</span> <span class="v">total</span> = <span class="v">recs</span>.<span class="f">reduce</span>((<span class="v">s</span>, <span class="v">r</span>) => <span class="v">s</span> + <span class="v">r</span>.<span class="v">weight</span>, <span class="n">0</span>);
+      <span class="k">let</span> <span class="v">pick</span> = <span class="f">Math.random</span>() * <span class="v">total</span>;  <span class="c">// 룰렛 휠 샘플링</span>
+      <span class="k">let</span> <span class="v">chosen</span> = <span class="v">recs</span>[<span class="n">0</span>].<span class="v">romanNumeral</span>;
+      <span class="k">for</span> (<span class="k">const</span> <span class="v">r</span> <span class="k">of</span> <span class="v">recs</span>) {
+        <span class="k">if</span> (<span class="v">pick</span> < <span class="v">r</span>.<span class="v">weight</span>) { <span class="v">chosen</span> = <span class="v">r</span>.<span class="v">romanNumeral</span>; <span class="k">break</span>; }
+        <span class="v">pick</span> -= <span class="v">r</span>.<span class="v">weight</span>;
+      }
+      <span class="v">out</span>.<span class="f">push</span>(<span class="v">chosen</span>);
+      <span class="v">cur</span> = <span class="v">chosen</span>;
+    }
+    <span class="k">return</span> <span class="v">out</span>;
+  }
+}</code></pre>
+
+    <h3>그래프 구조 시각화 (Pop 장르)</h3>
+    <div class="viz">
+      <div class="viz-title">adj = Map&lt;string, Map&lt;string, number&gt;&gt;</div>
+      <div class="graph-wrap">
+        <svg width="820" height="300" viewBox="0 0 820 300" style="display:block;margin:auto">
+          <defs>
+            <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="#7b82a8"/>
+            </marker>
+            <marker id="arr-hi" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="#6c63ff"/>
+            </marker>
+          </defs>
+
+          <!-- 노드 -->
+          <!-- I -->
+          <circle cx="180" cy="150" r="36" fill="#1a1d2e" stroke="#6c63ff" stroke-width="2.5"/>
+          <text x="180" y="145" text-anchor="middle" fill="#a8a4ff" font-size="18" font-weight="bold">I</text>
+          <text x="180" y="163" text-anchor="middle" fill="#7b82a8" font-size="10">tonic</text>
+
+          <!-- V -->
+          <circle cx="420" cy="60" r="36" fill="#1a1d2e" stroke="#4caf82" stroke-width="2"/>
+          <text x="420" y="55" text-anchor="middle" fill="#80d8a8" font-size="18" font-weight="bold">V</text>
+          <text x="420" y="73" text-anchor="middle" fill="#7b82a8" font-size="10">dominant</text>
+
+          <!-- IV -->
+          <circle cx="420" cy="240" r="36" fill="#1a1d2e" stroke="#e07b39" stroke-width="2"/>
+          <text x="420" y="235" text-anchor="middle" fill="#f0a070" font-size="18" font-weight="bold">IV</text>
+          <text x="420" y="253" text-anchor="middle" fill="#7b82a8" font-size="10">subdominant</text>
+
+          <!-- vi -->
+          <circle cx="640" cy="150" r="36" fill="#1a1d2e" stroke="#2980b9" stroke-width="2"/>
+          <text x="640" y="145" text-anchor="middle" fill="#70c0f0" font-size="18" font-weight="bold">vi</text>
+          <text x="640" y="163" text-anchor="middle" fill="#7b82a8" font-size="10">relative minor</text>
+
+          <!-- 엣지 I→V (0.50) -->
+          <line x1="214" y1="124" x2="386" y2="75" stroke="#6c63ff" stroke-width="2.5" marker-end="url(#arr-hi)"/>
+          <text x="285" y="82" text-anchor="middle" fill="#6c63ff" font-size="11" font-weight="bold">0.50</text>
+
+          <!-- 엣지 I→IV (0.25) -->
+          <line x1="212" y1="176" x2="386" y2="226" stroke="#7b82a8" stroke-width="1.5" marker-end="url(#arr)"/>
+          <text x="282" y="218" text-anchor="middle" fill="#7b82a8" font-size="11">0.25</text>
+
+          <!-- 엣지 I→vi (0.25) -->
+          <line x1="216" y1="150" x2="604" y2="150" stroke="#7b82a8" stroke-width="1.5" marker-end="url(#arr)"/>
+          <text x="410" y="143" text-anchor="middle" fill="#7b82a8" font-size="11">0.25</text>
+
+          <!-- 엣지 V→I (0.60) -->
+          <path d="M 395,88 Q 310,190 216,168" fill="none" stroke="#4caf82" stroke-width="2" marker-end="url(#arr)"/>
+          <text x="305" y="155" text-anchor="middle" fill="#4caf82" font-size="11" font-weight="bold">0.60</text>
+
+          <!-- 엣지 V→vi (0.40) -->
+          <line x1="456" y1="75" x2="607" y2="128" stroke="#7b82a8" stroke-width="1.5" marker-end="url(#arr)"/>
+          <text x="548" y="92" text-anchor="middle" fill="#7b82a8" font-size="11">0.40</text>
+
+          <!-- 엣지 vi→IV (0.55) -->
+          <path d="M 617,173 Q 560,240 456,240" fill="none" stroke="#2980b9" stroke-width="2" marker-end="url(#arr)"/>
+          <text x="555" y="247" text-anchor="middle" fill="#2980b9" font-size="11" font-weight="bold">0.55</text>
+
+          <!-- 엣지 IV→I (0.45) -->
+          <path d="M 390,218 Q 270,260 192,183" fill="none" stroke="#e07b39" stroke-width="2" marker-end="url(#arr)"/>
+          <text x="295" y="265" text-anchor="middle" fill="#e07b39" font-size="11" font-weight="bold">0.45</text>
+        </svg>
+      </div>
+    </div>
+
+    <h3>룰렛 휠 샘플링 (randomWalk)</h3>
+    <div class="viz">
+      <div class="viz-title">현재 노드 "I"에서 다음 코드 무작위 선택</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+        <div style="background:rgba(108,99,255,0.3);border:1px solid var(--accent);border-radius:6px;padding:8px 16px;font-family:monospace">V: 0.50</div>
+        <div style="background:rgba(108,99,255,0.12);border:1px solid var(--border);border-radius:6px;padding:8px 16px;font-family:monospace">IV: 0.25</div>
+        <div style="background:rgba(108,99,255,0.12);border:1px solid var(--border);border-radius:6px;padding:8px 16px;font-family:monospace">vi: 0.25</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:8px;height:28px;overflow:hidden;display:flex;margin-bottom:8px">
+        <div style="width:50%;background:#6c63ff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold">V (50%)</div>
+        <div style="width:25%;background:#e07b39;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold">IV (25%)</div>
+        <div style="width:25%;background:#2980b9;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold">vi (25%)</div>
+      </div>
+      <p style="font-size:0.83rem;color:var(--muted)">random(0, 1.0) → 범위에 해당하는 코드 선택. 가중치가 클수록 선택 확률이 높다.</p>
+    </div>
+
+    <div class="explain">
+      <strong>자료구조 선택 이유</strong> — 인접 리스트는 희소 그래프에 유리하다. 코드가 12개×2모드×다양한 7th 표기 = 수십 개 노드지만 각 노드의 평균 엣지는 4~6개에 불과하다. 인접 행렬(2D 배열)로 구현하면 대부분의 공간이 0으로 낭비되지만 인접 리스트는 실제 엣지만 저장한다.
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════ -->
+<!-- 3. 추천 로직 Cascade                       -->
+<!-- ══════════════════════════════════════════ -->
+<div class="section" id="s3">
+  <div class="section-header">
+    <span class="badge logic">Logic</span>
+    <div>
+      <h2>추천 로직 3단계 Cascade</h2>
+      <p>키 확정 여부에 따라 다른 전략을 적용한다 (App.jsx recs useMemo)</p>
+    </div>
+  </div>
+  <div class="section-body">
+
+    <h3>실제 코드 (App.jsx — 핵심 흐름)</h3>
+<pre><code><span class="k">const</span> <span class="v">recs</span> = <span class="f">useMemo</span>(() => {
+  <span class="c">// ① 빈 progression → 장르별 시작 코드 고정 반환</span>
+  <span class="k">if</span> (!<span class="v">progression</span>.<span class="v">length</span>) {
+    <span class="k">return</span> <span class="v">CHORD_DATA</span>.<span class="v">startingChords</span>[<span class="v">genre</span>].<span class="f">map</span>(<span class="v">r</span> => ...);
+  }
+
+  <span class="k">const</span> <span class="v">last</span> = <span class="v">progression</span>[<span class="v">progression</span>.<span class="v">length</span> - <span class="n">1</span>];
+
+  <span class="c">// 끝에서부터 같은 코드가 몇 번 연속인지 카운트</span>
+  <span class="k">let</span> <span class="v">lastRun</span> = <span class="n">1</span>;
+  <span class="k">for</span> (<span class="k">let</span> <span class="v">i</span> = <span class="v">progression</span>.<span class="v">length</span> - <span class="n">2</span>; <span class="v">i</span> >= <span class="n">0</span>; <span class="v">i</span>--) {
+    <span class="k">if</span> (<span class="v">progression</span>[<span class="v">i</span>].<span class="v">romanNumeral</span> === <span class="v">last</span>.<span class="v">romanNumeral</span>) <span class="v">lastRun</span>++;
+    <span class="k">else</span> <span class="k">break</span>;
+  }
+  <span class="c">// maxRepeat: { pop:1, jazz:1, rock:2, blues:3 }</span>
+  <span class="k">const</span> <span class="v">allowSelf</span> = <span class="v">lastRun</span> < <span class="v">CHORD_DATA</span>.<span class="v">maxRepeat</span>[<span class="v">genre</span>];
+
+  <span class="c">// ② 키 미확정 → 절대음명 패턴 매칭</span>
+  <span class="k">if</span> (!<span class="v">keyConfirmed</span>) {
+    <span class="k">const</span> <span class="v">patternRecs</span> = <span class="f">MUSIC.getAbsolutePatternRecs</span>(<span class="v">progression</span>, <span class="v">songs</span>);
+    <span class="k">if</span> (<span class="v">patternRecs</span>.<span class="v">length</span>) <span class="k">return</span> <span class="v">patternRecs</span>.<span class="f">filter</span>(...).<span class="f">slice</span>(<span class="n">0</span>, <span class="n">4</span>);
+
+    <span class="c">// 패턴 없으면 implied tonic으로 폴백</span>
+    <span class="k">const</span> <span class="v">implied</span> = <span class="f">MUSIC.impliedTonicFromProgression</span>(<span class="v">progression</span>);
+    <span class="k">const</span> <span class="v">fallbackRecs</span> = <span class="v">graph</span>.<span class="f">getRecommendations</span>(<span class="v">lastRoman2</span>, <span class="k">null</span>, <span class="n">5</span>);
+    <span class="k">return</span> <span class="v">fallbackRecs</span>.<span class="f">filter</span>(...).<span class="f">slice</span>(<span class="n">0</span>, <span class="n">4</span>);
+  }
+
+  <span class="c">// ③ 키 확정 → 도수 변환 후 그래프 추천</span>
+  <span class="k">let</span> <span class="v">lastRoman</span> = <span class="v">last</span>.<span class="v">romanNumeral</span>;
+  <span class="k">if</span> (!<span class="v">lastRoman</span> || <span class="v">lastRoman</span> === <span class="s">"?"</span>)
+    <span class="v">lastRoman</span> = <span class="f">MUSIC.getRelativeRoman</span>(<span class="v">last</span>, <span class="v">usedKey</span>, <span class="v">usedMode</span>);
+
+  <span class="k">const</span> <span class="v">baseRecs</span> = <span class="v">graph</span>.<span class="f">getRecommendations</span>(<span class="v">lastRoman</span>, <span class="v">diatonic</span>, <span class="n">5</span>, <span class="v">genre</span>);
+  <span class="k">return</span> <span class="v">baseRecs</span>.<span class="f">filter</span>(<span class="v">r</span> => <span class="v">allowSelf</span> || <span class="v">r</span>.<span class="v">romanNumeral</span> !== <span class="v">lastRoman</span>).<span class="f">slice</span>(<span class="n">0</span>, <span class="n">4</span>);
+}, [<span class="v">progression</span>, <span class="v">session</span>, <span class="v">inferredKey</span>]);</code></pre>
+
+    <h3>흐름 다이어그램</h3>
+    <div class="viz">
+      <div class="flow">
+        <div class="flow-step">
+          <div class="flow-box" style="background:rgba(255,255,255,0.04)">progression 변경됨 (useMemo 재계산)</div>
+        </div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-step">
+          <div class="flow-box">progression.length === 0 ?</div>
+          <span class="flow-note">YES → startingChords[genre] 반환 ✓</span>
+        </div>
+        <div class="flow-arrow">↓ NO</div>
+        <div class="flow-step">
+          <div class="flow-box">lastRun 계산 → allowSelf 결정</div>
+          <span class="flow-note">연속 반복 방지</span>
+        </div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-step">
+          <div class="flow-box orange">키 미확정? (session.key 없고 confidence &lt; 0.7)</div>
+        </div>
+        <div class="flow-arrow" style="margin-left:40px">↓ YES</div>
+        <div class="flow-step" style="padding-left:40px">
+          <div class="flow-box orange">getAbsolutePatternRecs(progression, songs)</div>
+          <span class="flow-note">절대음명으로 매칭</span>
+        </div>
+        <div class="flow-arrow" style="margin-left:40px">↓ 결과 없으면</div>
+        <div class="flow-step" style="padding-left:40px">
+          <div class="flow-box">impliedTonicFromProgression → graph 폴백</div>
+        </div>
+        <div class="flow-arrow">↓ NO (키 확정)</div>
+        <div class="flow-step">
+          <div class="flow-box green">getRelativeRoman(last, key, mode) → 도수 변환</div>
+        </div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-step">
+          <div class="flow-box green">graph.getRecommendations(lastRoman, diatonic, 5, genre)</div>
+        </div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-step">
+          <div class="flow-box highlight">allowSelf 필터 → 상위 4개 → 추천 카드 표시</div>
+        </div>
+      </div>
+    </div>
+
+    <h3>연속 반복 제어 — maxRepeat</h3>
+    <div class="viz">
+      <table>
+        <thead><tr><th>장르</th><th>maxRepeat</th><th>의도</th></tr></thead>
+        <tbody>
+          <tr><td>Pop</td><td class="mono">1</td><td>동일 코드 1번 이상 추천 안 함 — 즉시 다음으로</td></tr>
+          <tr><td>Jazz</td><td class="mono">1</td><td>즉시 다음으로</td></tr>
+          <tr><td>Rock</td><td class="mono">2</td><td>파워코드 리프 1회 반복까지 허용</td></tr>
+          <tr><td>Blues</td><td class="mono">3</td><td>I7 3번 반복 후 IV7/V7으로 자연스럽게 유도 (12마디 형식)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════ -->
+<!-- 4. inferKey                               -->
+<!-- ══════════════════════════════════════════ -->
+<div class="section" id="s4">
+  <div class="section-header">
+    <span class="badge" style="background:#9b59b6">Scoring</span>
+    <div>
+      <h2>inferKey — 24후보 스코어링으로 키 자동 추론</h2>
+      <p>코드 3개 이상 쌓이면 12키 × 2모드 = 24가지를 모두 채점한다</p>
+    </div>
+  </div>
+  <div class="section-body">
+
+    <h3>실제 코드 (music.js)</h3>
+<pre><code><span class="k">function</span> <span class="f">inferKey</span>(<span class="v">playedChords</span>) {
+  <span class="k">if</span> (<span class="v">playedChords</span>.<span class="v">length</span> < <span class="n">3</span>) <span class="k">return</span> [];
+
+  <span class="k">const</span> <span class="v">rootPcs</span>  = <span class="v">playedChords</span>.<span class="f">map</span>(<span class="v">c</span> => <span class="f">pc</span>(<span class="v">c</span>.<span class="v">rootNote</span>)); <span class="c">// 0–11</span>
+  <span class="k">const</span> <span class="v">qualities</span> = <span class="v">playedChords</span>.<span class="f">map</span>(<span class="v">c</span> => <span class="v">c</span>.<span class="v">quality</span>);
+
+  <span class="k">const</span> <span class="v">results</span> = [];
+  <span class="k">for</span> (<span class="k">const</span> <span class="v">keyName</span> <span class="k">of</span> <span class="v">NOTES</span>) {           <span class="c">// 12키</span>
+    <span class="k">for</span> (<span class="k">const</span> <span class="v">mode</span> <span class="k">of</span> [<span class="s">"major"</span>, <span class="s">"minor"</span>]) {  <span class="c">// 2모드</span>
+      <span class="k">const</span> <span class="v">scPcs</span> = <span class="f">scale</span>(<span class="v">keyName</span>, <span class="v">mode</span>).<span class="f">map</span>(<span class="f">pc</span>);
+      <span class="k">let</span> <span class="v">score</span> = <span class="n">0</span>;
+      <span class="k">for</span> (<span class="k">let</span> <span class="v">i</span> = <span class="n">0</span>; <span class="v">i</span> < <span class="v">playedChords</span>.<span class="v">length</span>; <span class="v">i</span>++) {
+        <span class="c">// 루트음이 스케일에 속하면 +1</span>
+        <span class="k">if</span> (<span class="v">scPcs</span>.<span class="f">includes</span>(<span class="v">rootPcs</span>[<span class="v">i</span>])) <span class="v">score</span> += <span class="n">1</span>;
+        <span class="c">// 토닉 코드가 quality도 맞으면 보너스 +0.5</span>
+        <span class="k">if</span> (<span class="v">rootPcs</span>[<span class="v">i</span>] === <span class="f">pc</span>(<span class="v">keyName</span>)) {
+          <span class="k">if</span> (<span class="v">mode</span> === <span class="s">"major"</span> && [<span class="s">"maj"</span>,<span class="s">"dom7"</span>,<span class="s">"maj7"</span>].<span class="f">includes</span>(<span class="v">qualities</span>[<span class="v">i</span>])) <span class="v">score</span> += <span class="n">0.5</span>;
+          <span class="k">if</span> (<span class="v">mode</span> === <span class="s">"minor"</span> && [<span class="s">"min"</span>,<span class="s">"min7"</span>].<span class="f">includes</span>(<span class="v">qualities</span>[<span class="v">i</span>])) <span class="v">score</span> += <span class="n">0.5</span>;
+        }
+      }
+      <span class="v">results</span>.<span class="f">push</span>({ <span class="v">key</span>: <span class="v">keyName</span>, <span class="v">mode</span>, <span class="v">confidence</span>: <span class="v">score</span> / <span class="v">playedChords</span>.<span class="v">length</span> });
+    }
+  }
+  <span class="v">results</span>.<span class="f">sort</span>((<span class="v">a</span>, <span class="v">b</span>) => <span class="v">b</span>.<span class="v">confidence</span> - <span class="v">a</span>.<span class="v">confidence</span>);
+  <span class="k">return</span> <span class="v">results</span>[<span class="n">0</span>].<span class="v">confidence</span> >= <span class="n">0.7</span> ? [<span class="v">results</span>[<span class="n">0</span>]] : [];
+}</code></pre>
+
+    <h3>예시 — [C, G, Am] 입력 시 스코어링</h3>
+    <div class="viz">
+      <div class="viz-title">24개 후보 중 상위 6개 표시 (C major가 최고 점수)</div>
+      <div class="key-grid">
+        <div class="key-cell winner">
+          <div class="kname">C</div>
+          <div class="kmode">major</div>
+          <div class="kbar"><div class="kfill" style="width:100%"></div></div>
+          <div style="font-size:0.7rem;color:#4caf82;margin-top:4px">1.0 ✓</div>
+        </div>
+        <div class="key-cell">
+          <div class="kname">G</div>
+          <div class="kmode">major</div>
+          <div class="kbar"><div class="kfill" style="width:75%;background:#9b82ff"></div></div>
+          <div style="font-size:0.7rem;color:var(--muted);margin-top:4px">0.75</div>
+        </div>
+        <div class="key-cell">
+          <div class="kname">F</div>
+          <div class="kmode">major</div>
+          <div class="kbar"><div class="kfill" style="width:67%;background:#7b82a8"></div></div>
+          <div style="font-size:0.7rem;color:var(--muted);margin-top:4px">0.67</div>
+        </div>
+        <div class="key-cell">
+          <div class="kname">A</div>
+          <div class="kmode">minor</div>
+          <div class="kbar"><div class="kfill" style="width:58%;background:#7b82a8"></div></div>
+          <div style="font-size:0.7rem;color:var(--muted);margin-top:4px">0.58</div>
+        </div>
+        <div class="key-cell">
+          <div class="kname">D</div>
+          <div class="kmode">major</div>
+          <div class="kbar"><div class="kfill" style="width:42%;background:#7b82a8"></div></div>
+          <div style="font-size:0.7rem;color:var(--muted);margin-top:4px">0.42</div>
+        </div>
+        <div class="key-cell">
+          <div class="kname">E</div>
+          <div class="kmode">minor</div>
+          <div class="kbar"><div class="kfill" style="width:33%;background:#7b82a8"></div></div>
+          <div style="font-size:0.7rem;color:var(--muted);margin-top:4px">0.33</div>
+        </div>
+      </div>
+      <p style="font-size:0.82rem;color:var(--muted);margin-top:8px">confidence ≥ 0.7 → C major 자동 확정 / 뱃지 표시</p>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════ -->
+<!-- 5. ProgressionStack                       -->
+<!-- ══════════════════════════════════════════ -->
+<div class="section" id="s5">
+  <div class="section-header">
+    <span class="badge stack">Stack</span>
+    <div>
+      <h2>ProgressionStack — Undo/Redo 이중 스택</h2>
+      <p>current[], past[][], future[][]로 전체 히스토리를 관리한다</p>
+    </div>
+  </div>
+  <div class="section-body">
+
+    <h3>실제 코드 (structures.js)</h3>
+<pre><code><span class="k">export class</span> <span class="f">ProgressionStack</span> {
+  <span class="f">constructor</span>() {
+    <span class="k">this</span>.<span class="v">current</span> = [];   <span class="c">// 현재 코드 진행</span>
+    <span class="k">this</span>.<span class="v">past</span>    = [];   <span class="c">// undo 히스토리 (스냅샷 배열)</span>
+    <span class="k">this</span>.<span class="v">future</span>  = [];   <span class="c">// redo 히스토리</span>
+  }
+
+  <span class="f">push</span>(<span class="v">item</span>) {
+    <span class="k">this</span>.<span class="v">past</span>.<span class="f">push</span>([...<span class="k">this</span>.<span class="v">current</span>]);  <span class="c">// 현재 상태 스냅샷 저장</span>
+    <span class="k">this</span>.<span class="v">current</span>.<span class="f">push</span>(<span class="v">item</span>);
+    <span class="k">this</span>.<span class="v">future</span> = [];                    <span class="c">// 새 행동 → redo 히스토리 초기화</span>
+  }
+
+  <span class="f">undo</span>() {
+    <span class="k">if</span> (!<span class="k">this</span>.<span class="v">past</span>.<span class="v">length</span>) <span class="k">return null</span>;
+    <span class="k">this</span>.<span class="v">future</span>.<span class="f">push</span>([...<span class="k">this</span>.<span class="v">current</span>]);
+    <span class="k">this</span>.<span class="v">current</span> = <span class="k">this</span>.<span class="v">past</span>.<span class="f">pop</span>();
+    <span class="k">return this</span>.<span class="v">current</span>;
+  }
+
+  <span class="f">redo</span>() {
+    <span class="k">if</span> (!<span class="k">this</span>.<span class="v">future</span>.<span class="v">length</span>) <span class="k">return null</span>;
+    <span class="k">this</span>.<span class="v">past</span>.<span class="f">push</span>([...<span class="k">this</span>.<span class="v">current</span>]);
+    <span class="k">this</span>.<span class="v">current</span> = <span class="k">this</span>.<span class="v">future</span>.<span class="f">pop</span>();
+    <span class="k">return this</span>.<span class="v">current</span>;
+  }
+
+  <span class="f">set</span>(<span class="v">newArr</span>) { <span class="c">// 통째로 교체 (자동생성, 소급 업데이트)</span>
+    <span class="k">this</span>.<span class="v">past</span>.<span class="f">push</span>([...<span class="k">this</span>.<span class="v">current</span>]);
+    <span class="k">this</span>.<span class="v">current</span> = [...<span class="v">newArr</span>];
+    <span class="k">this</span>.<span class="v">future</span> = [];
+  }
+
+  <span class="f">load</span>(<span class="v">newArr</span>) { <span class="c">// 히스토리 없이 교체 (프로젝트 불러오기)</span>
+    <span class="k">this</span>.<span class="v">past</span> = []; <span class="k">this</span>.<span class="v">current</span> = [...<span class="v">newArr</span>]; <span class="k">this</span>.<span class="v">future</span> = [];
+  }
+}</code></pre>
+
+    <h3>상태 변화 시각화</h3>
+    <div class="viz">
+      <div class="viz-title">I → IV → V 추가 후 undo → redo 흐름</div>
+      <div style="display:flex;flex-direction:column;gap:20px">
+
+        <!-- push I -->
+        <div>
+          <p style="font-size:0.8rem;color:var(--muted);margin-bottom:8px">① push("I") 실행</p>
+          <div class="stack-viz">
+            <div class="stack-col">
+              <label>past</label>
+              <div class="stack-item" style="background:rgba(255,255,255,0.03);color:var(--muted)">[ ]</div>
+            </div>
+            <div class="stack-col">
+              <label>current</label>
+              <div class="stack-item active">I</div>
+            </div>
+            <div class="stack-col">
+              <label>future</label>
+              <div class="stack-item" style="background:rgba(255,255,255,0.03);color:var(--muted)">[ ]</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- push IV, V -->
+        <div>
+          <p style="font-size:0.8rem;color:var(--muted);margin-bottom:8px">② push("IV"), push("V") 실행</p>
+          <div class="stack-viz">
+            <div class="stack-col">
+              <label>past</label>
+              <div class="stack-item past">[I, IV]</div>
+              <div class="stack-item past">[I]</div>
+              <div class="stack-item past">[ ]</div>
+            </div>
+            <div class="stack-col">
+              <label>current</label>
+              <div class="stack-item active">I</div>
+              <div class="stack-item active">IV</div>
+              <div class="stack-item active">V</div>
+            </div>
+            <div class="stack-col">
+              <label>future</label>
+              <div class="stack-item" style="background:rgba(255,255,255,0.03);color:var(--muted)">[ ]</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- undo -->
+        <div>
+          <p style="font-size:0.8rem;color:var(--muted);margin-bottom:8px">③ undo() 실행 — V 제거</p>
+          <div class="stack-viz">
+            <div class="stack-col">
+              <label>past</label>
+              <div class="stack-item past">[I]</div>
+              <div class="stack-item past">[ ]</div>
+            </div>
+            <div class="stack-col">
+              <label>current</label>
+              <div class="stack-item active">I</div>
+              <div class="stack-item active">IV</div>
+            </div>
+            <div class="stack-col">
+              <label>future</label>
+              <div class="stack-item future">[I, IV, V]</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="explain orange">
+      <strong>왜 스택인가?</strong> Undo/Redo는 "마지막으로 한 행동을 취소"하는 LIFO 구조가 자연스럽다.
+      past와 future 두 스택을 쌍으로 유지하는 이 패턴은 텍스트 에디터, Figma, Photoshop 등 모든 Undo 시스템에서 사용하는 표준 구현이다.
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════ -->
+<!-- 6. PlaybackQueue                          -->
+<!-- ══════════════════════════════════════════ -->
+<div class="section" id="s6">
+  <div class="section-header">
+    <span class="badge queue">Queue</span>
+    <div>
+      <h2>PlaybackQueue — FIFO 재생 큐</h2>
+      <p>코드 진행을 순서대로 재생하기 위한 배열 기반 FIFO 큐</p>
+    </div>
+  </div>
+  <div class="section-body">
+
+    <h3>실제 코드 (structures.js)</h3>
+<pre><code><span class="k">export class</span> <span class="f">PlaybackQueue</span> {
+  <span class="f">constructor</span>() { <span class="k">this</span>.<span class="v">items</span> = []; }
+
+  <span class="f">enqueueAll</span>(<span class="v">items</span>) { <span class="k">this</span>.<span class="v">items</span>.<span class="f">push</span>(...<span class="v">items</span>); }
+  <span class="f">dequeue</span>()          { <span class="k">return this</span>.<span class="v">items</span>.<span class="f">shift</span>(); }
+  <span class="f">isEmpty</span>()          { <span class="k">return this</span>.<span class="v">items</span>.<span class="v">length</span> === <span class="n">0</span>; }
+  <span class="f">peek</span>()             { <span class="k">return this</span>.<span class="v">items</span>[<span class="n">0</span>] ?? <span class="k">null</span>; }
+  <span class="f">size</span>()             { <span class="k">return this</span>.<span class="v">items</span>.<span class="v">length</span>; }
+  <span class="f">clear</span>()            { <span class="k">this</span>.<span class="v">items</span> = []; }
+}</code></pre>
+
+    <h3>재생 엔진과의 연동 (audio.js)</h3>
+<pre><code><span class="c">// AUDIO.playProgression 내부 흐름</span>
+<span class="v">queue</span>.<span class="f">enqueueAll</span>(<span class="v">progression</span>);  <span class="c">// [I, V, vi, IV] 전부 삽입</span>
+
+<span class="k">async function</span> <span class="f">tick</span>() {
+  <span class="k">if</span> (<span class="v">queue</span>.<span class="f">isEmpty</span>()) { <span class="f">onDone</span>(); <span class="k">return</span>; }
+
+  <span class="k">const</span> <span class="v">chord</span> = <span class="v">queue</span>.<span class="f">dequeue</span>();          <span class="c">// 앞에서 꺼냄 (FIFO)</span>
+  <span class="v">onIndex</span>(<span class="v">currentIdx</span>++);                  <span class="c">// 카드 하이라이트</span>
+  <span class="v">sampler</span>.<span class="f">triggerAttackRelease</span>(<span class="v">chord</span>.<span class="v">notes</span>, <span class="s">"2n"</span>);
+  <span class="f">setTimeout</span>(<span class="v">tick</span>, <span class="v">chordDurationMs</span>);     <span class="c">// 다음 코드 예약</span>
+}</code></pre>
+
+    <h3>재생 흐름 시각화</h3>
+    <div class="viz">
+      <div class="viz-title">I → V → vi → IV 재생 중 (vi 재생 직후 상태)</div>
+
+      <div style="margin-bottom:16px">
+        <p style="font-size:0.8rem;color:var(--muted);margin-bottom:8px">enqueueAll 직후 (재생 전)</p>
+        <div class="queue-viz">
+          <span style="font-size:0.75rem;color:var(--muted)">front →</span>
+          <div class="queue-item head">I</div>
+          <div class="queue-arrow">→</div>
+          <div class="queue-item">V</div>
+          <div class="queue-arrow">→</div>
+          <div class="queue-item">vi</div>
+          <div class="queue-arrow">→</div>
+          <div class="queue-item">IV</div>
+          <span style="font-size:0.75rem;color:var(--muted)">← rear</span>
+        </div>
+      </div>
+
+      <div>
+        <p style="font-size:0.8rem;color:var(--muted);margin-bottom:8px">I, V 재생 완료 후 → vi 재생 중</p>
+        <div class="queue-viz">
+          <span style="font-size:0.75rem;color:var(--muted)">front →</span>
+          <div class="queue-item head" style="border-color:#f0c040;background:rgba(240,192,64,0.2);color:#f0c040">vi ▶</div>
+          <div class="queue-arrow">→</div>
+          <div class="queue-item">IV</div>
+          <span style="font-size:0.75rem;color:var(--muted)">← rear</span>
+        </div>
+        <p style="font-size:0.8rem;color:var(--muted);margin-top:8px">I, V는 이미 dequeue되어 Tone.js에 전달됨</p>
+      </div>
+    </div>
+
+    <div class="explain blue">
+      <strong>왜 큐인가?</strong> 음악 재생은 입력된 순서 그대로 출력해야 한다. 스택은 마지막에 넣은 걸 먼저 꺼내는 LIFO라 역순 재생이 된다.
+      코드 진행의 선형 순서를 보장하려면 FIFO 큐가 필수다.
+    </div>
+  </div>
+</div>
+
+
+<!-- 요약 테이블 -->
+<div class="section" style="max-width:900px;margin:32px auto">
+  <div class="section-header">
+    <div>
+      <h2>자료구조 선택 요약</h2>
+      <p>각 자료구조가 어떤 문제를 해결하는가</p>
+    </div>
+  </div>
+  <div class="section-body">
+    <table>
+      <thead>
+        <tr><th>자료구조</th><th>클래스</th><th>핵심 연산</th><th>선택 이유</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong style="color:#4caf82">방향 가중치 그래프</strong><br><span style="font-size:0.78rem;color:var(--muted)">(인접 리스트)</span></td>
+          <td class="mono">ChordGraph</td>
+          <td class="mono">getRecommendations<br>randomWalk</td>
+          <td>코드 간 전이 관계를 노드-엣지로 표현. 희소 그래프라 인접 리스트가 효율적</td>
+        </tr>
+        <tr>
+          <td><strong style="color:#e07b39">이중 스택</strong><br><span style="font-size:0.78rem;color:var(--muted)">(Undo/Redo)</span></td>
+          <td class="mono">ProgressionStack</td>
+          <td class="mono">push / undo / redo</td>
+          <td>LIFO로 "마지막 행동 취소"를 O(1)에 구현. past/future 두 스택 쌍이 표준 패턴</td>
+        </tr>
+        <tr>
+          <td><strong style="color:#2980b9">FIFO 큐</strong></td>
+          <td class="mono">PlaybackQueue</td>
+          <td class="mono">enqueueAll / dequeue</td>
+          <td>재생 순서 보장. 입력 순서 = 출력 순서가 필요한 음악 재생에 적합</td>
+        </tr>
+        <tr>
+          <td><strong style="color:#9b59b6">해시맵</strong></td>
+          <td class="mono">buildTransitions<br>FromSongs</td>
+          <td class="mono">빈도 집계<br>확률 정규화</td>
+          <td>문자열 키로 O(1) 조회. 전이 테이블의 희소 특성에 적합</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<footer>
+  ChordFlow — 자료구조 수업 프로젝트 &nbsp;·&nbsp; Graph · Stack · Queue · HashMap
+</footer>
+
+</body>
+</html>
