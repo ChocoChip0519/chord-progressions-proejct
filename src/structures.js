@@ -1,44 +1,51 @@
 export class ChordGraph {
-  constructor() { this.adj = new Map(); }
+  constructor() { this.adj = {}; }
 
   loadFromData(data) {
-    this.adj.clear();
+    this.adj = {};
     for (const from in data) {
-      const m = new Map();
-      for (const to in data[from]) m.set(to, data[from][to]);
-      this.adj.set(from, m);
+      this.adj[from] = {};
+      for (const to in data[from]) {
+        this.adj[from][to] = data[from][to];
+      }
     }
   }
 
   addEdge(from, to, w) {
-    if (!this.adj.has(from)) this.adj.set(from, new Map());
-    this.adj.get(from).set(to, w);
+    if (!this.adj[from]) this.adj[from] = {};
+    this.adj[from][to] = w;
   }
 
-  getRecommendations(from, diatonic, topN = 4, genre = null) {
-    const m = this.adj.get(from);
+  // 그래프에서 from 노드의 이웃을 가중치 순으로 반환 (필터링 없음)
+  getRecommendations(from, topN = 4) {
+    const m = this.adj[from];
     if (!m) return [];
-    let arr = [...m.entries()].map(([r, w]) => ({ romanNumeral: r, weight: w }));
-    if (diatonic && diatonic.length) {
-      const allowed = new Set(diatonic);
-      const JAZZ_EXTRAS = new Set(["bII7", "VI7", "II7"]);
-      arr = arr.filter(x =>
-        allowed.has(x.romanNumeral) ||
-        (genre === "rock" && x.romanNumeral === "bVII") ||
-        (genre === "jazz" && JAZZ_EXTRAS.has(x.romanNumeral))
-      );
+
+    // 인접 노드를 배열로 변환
+    const arr = [];
+    for (const r in m) {
+      arr.push({ romanNumeral: r, weight: m[r] });
     }
+
+    // 가중치 높은 순으로 정렬
     arr.sort((a, b) => b.weight - a.weight);
-    return arr.slice(0, topN);
+
+    // 상위 topN개만 반환
+    const result = [];
+    for (let i = 0; i < topN && i < arr.length; i++) {
+      result.push(arr[i]);
+    }
+    return result;
   }
 
   randomWalk(start, steps, diatonic, genre = null) {
     const out = [start];
     let cur = start;
     for (let i = 0; i < steps; i++) {
-      const recs = this.getRecommendations(cur, diatonic, 8, genre);
+      const recs = filterByDiatonic(this.getRecommendations(cur, 8), diatonic, genre);
       if (!recs.length) break;
-      const total = recs.reduce((s, r) => s + r.weight, 0);
+      let total = 0;
+      for (let j = 0; j < recs.length; j++) total += recs[j].weight;
       let pick = Math.random() * total;
       let chosen = recs[0].romanNumeral;
       for (const r of recs) {
@@ -50,6 +57,34 @@ export class ChordGraph {
     }
     return out;
   }
+}
+
+// 추천 결과에서 조성(diatonic)에 맞는 코드만 추리기
+export function filterByDiatonic(recs, diatonic, genre = null) {
+  if (!diatonic || !diatonic.length) return recs;
+
+  const JAZZ_EXTRAS = ["bII7", "VI7", "II7"];
+  const result = [];
+
+  for (let i = 0; i < recs.length; i++) {
+    const x = recs[i];
+
+    let inDiatonic = false;
+    for (let j = 0; j < diatonic.length; j++) {
+      if (diatonic[j] === x.romanNumeral) { inDiatonic = true; break; }
+    }
+
+    let inJazzExtras = false;
+    for (let j = 0; j < JAZZ_EXTRAS.length; j++) {
+      if (JAZZ_EXTRAS[j] === x.romanNumeral) { inJazzExtras = true; break; }
+    }
+
+    if (inDiatonic || (genre === "rock" && x.romanNumeral === "bVII") || (genre === "jazz" && inJazzExtras)) {
+      result.push(x);
+    }
+  }
+
+  return result;
 }
 
 export class ProgressionStack {

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { CHORD_DATA } from './data.js';
 import { MUSIC } from './music.js';
 import { AUDIO } from './audio.js';
-import { ChordGraph, ProgressionStack } from './structures.js';
+import { ChordGraph, ProgressionStack, filterByDiatonic } from './structures.js';
 import Header from './Header.jsx';
 import Timeline from './Timeline.jsx';
 import Recommendations from './Recommendations.jsx';
@@ -125,7 +125,7 @@ function App() {
       }
       if (!lastRoman2 || lastRoman2 === "?") return [];
       if (genre === "blues" && !lastRoman2.endsWith("7")) lastRoman2 = lastRoman2 + "7";
-      const fallbackRecs = graph.getRecommendations(lastRoman2, null, 5);
+      const fallbackRecs = graph.getRecommendations(lastRoman2, 5);
       return fallbackRecs
         .filter(r => allowSelf || r.romanNumeral !== lastRoman2)
         .slice(0, 4)
@@ -154,7 +154,7 @@ function App() {
 
     if (genre === "blues" && !lastRoman.endsWith("7")) lastRoman = lastRoman + "7";
 
-    const baseRecs = graph.getRecommendations(lastRoman, diatonic, 5, genre);
+    const baseRecs = filterByDiatonic(graph.getRecommendations(lastRoman, 5), diatonic, genre);
 
     return baseRecs
       .filter(r => allowSelf || r.romanNumeral !== lastRoman)
